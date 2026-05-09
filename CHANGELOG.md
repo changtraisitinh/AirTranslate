@@ -2,6 +2,13 @@
 
 All notable changes to AirTranslate are documented in this file.
 
+## 2026-05-09 - MIT Open Source License
+
+### Added
+
+- Added the MIT License as the project license.
+- Documented that source code, documentation, scripts, and bundled project assets are covered by the MIT License unless otherwise noted.
+
 ## 2026-05-09 - Transcript Control and Stability
 
 ### Added
@@ -20,4 +27,3 @@ All notable changes to AirTranslate are documented in this file.
 - `swift build` passes.
 - Short runtime memory check stabilized around 107 MB RSS after launch.
 - `leaks --quiet` reported `0 leaks for 0 total leaked bytes`.
-

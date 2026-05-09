@@ -241,3 +241,9 @@ script/
 이 앱은 로컬 SwiftPM macOS 앱으로 관리합니다. GUI 앱 실행은 raw executable이 아니라 `script/build_and_run.sh`가 만든 `.app` 번들을 통해 수행합니다.
 
 빌드 산출물인 `.build/`와 `dist/`는 git에 포함하지 않습니다.
+
+## 라이선스
+
+AirTranslate는 [MIT License](LICENSE)로 공개됩니다.
+
+별도 표기가 없는 한 이 저장소의 소스 코드, 문서, 스크립트, 포함된 프로젝트 자산은 MIT License 조건에 따라 사용할 수 있습니다.
