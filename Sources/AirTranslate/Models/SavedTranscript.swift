@@ -4,7 +4,14 @@ struct SavedTranscript: Identifiable, Equatable {
     let id: String
     var title: String
     var sourceText: String
+    var translatedText: String?
+    var sourceFileName: String
+    var translationFileName: String?
     var updatedAt: Date
+
+    var isOriginalAndTranslation: Bool {
+        translatedText != nil && translationFileName != nil
+    }
 
     init(
         fileName: String,
@@ -14,6 +21,26 @@ struct SavedTranscript: Identifiable, Equatable {
         self.id = fileName
         self.title = SavedTranscript.title(from: sourceText, fallback: fileName)
         self.sourceText = sourceText
+        self.translatedText = nil
+        self.sourceFileName = fileName
+        self.translationFileName = nil
+        self.updatedAt = updatedAt
+    }
+
+    init(
+        id: String,
+        sourceFileName: String,
+        translationFileName: String,
+        sourceText: String,
+        translatedText: String,
+        updatedAt: Date
+    ) {
+        self.id = id
+        self.title = SavedTranscript.title(from: sourceText, fallback: id)
+        self.sourceText = sourceText
+        self.translatedText = translatedText
+        self.sourceFileName = sourceFileName
+        self.translationFileName = translationFileName
         self.updatedAt = updatedAt
     }
 

@@ -77,9 +77,9 @@
     .brand img {
       width: 32px;
       height: 32px;
-      border-radius: 8px;
+      border-radius: 9px;
       image-rendering: pixelated;
-      background: var(--white);
+      background: transparent;
     }
 
     .nav-links {
@@ -97,10 +97,10 @@
 
     .hero {
       position: relative;
-      min-height: calc(100vh - 68px);
+      min-height: min(820px, calc(100vh - 68px));
       display: grid;
       place-items: center;
-      padding: 70px 22px 84px;
+      padding: 52px 22px 72px;
       isolation: isolate;
     }
 
@@ -165,12 +165,10 @@
       height: 100%;
       display: block;
       position: relative;
-      border-radius: 36px;
+      border-radius: 24%;
       image-rendering: pixelated;
-      background: var(--white);
+      background: transparent;
       box-shadow:
-        0 0 0 4px var(--white),
-        0 0 0 9px var(--black),
         18px 18px 0 var(--blue),
         -12px 22px 0 var(--green),
         0 34px 56px var(--shadow);
@@ -322,11 +320,11 @@
     }
 
     .live-window {
-      min-height: 420px;
+      min-height: 430px;
       background: #10161f;
       display: flex;
       flex-direction: column;
-      gap: 18px;
+      gap: 14px;
     }
 
     .window-bar {
@@ -354,18 +352,113 @@
       flex: 1;
     }
 
+    .compact-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 10px 12px;
+      border: 2px solid var(--line);
+      background: var(--panel-strong);
+      box-shadow: 5px 5px 0 var(--black);
+    }
+
+    .tool-icon,
+    .copy-dot {
+      display: grid;
+      place-items: center;
+      background: #0f4f94;
+      color: var(--white);
+      border: 2px solid #253142;
+      font-weight: 900;
+    }
+
+    .tool-icon {
+      width: 34px;
+      height: 34px;
+    }
+
+    .transport {
+      display: flex;
+      gap: 6px;
+      padding: 4px;
+      border: 2px solid var(--line);
+      border-radius: 999px;
+      background: #202936;
+    }
+
+    .transport .tool-icon {
+      background: #252f3d;
+    }
+
+    .transport .active {
+      background: var(--blue);
+      color: var(--white);
+    }
+
+    .session-strip {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+      padding: 10px 12px;
+      border: 2px solid var(--line);
+      background: #111823;
+    }
+
+    .session-chip {
+      height: 12px;
+      width: 150px;
+      background: #5d6c80;
+      box-shadow: 3px 3px 0 var(--black);
+    }
+
+    .session-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .session-actions span {
+      width: 26px;
+      height: 26px;
+      background: #263244;
+      border: 2px solid var(--line);
+    }
+
     .caption-pane {
       min-height: 270px;
       padding: 18px;
       background: var(--panel-strong);
       border: 2px solid var(--line);
+      overflow: hidden;
+      position: relative;
     }
 
-    .caption-pane strong {
-      display: block;
+    .caption-pane::after {
+      content: "";
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      bottom: 18px;
+      height: 54px;
+      background: linear-gradient(to bottom, transparent, var(--panel-strong));
+    }
+
+    .pane-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
       color: var(--white);
       margin-bottom: 16px;
       font-size: 15px;
+      font-weight: 900;
+    }
+
+    .copy-dot {
+      width: 28px;
+      height: 28px;
+      background: #263244;
+      color: #8fbfff;
     }
 
     .caption-line {
@@ -446,10 +539,9 @@
     .final-panel img {
       width: 110px;
       height: 110px;
-      border-radius: 24px;
+      border-radius: 24%;
       image-rendering: pixelated;
-      background: var(--white);
-      border: 3px solid var(--black);
+      background: transparent;
     }
 
     .final-panel h2 {
@@ -527,6 +619,7 @@
       </a>
       <div class="nav-links">
         <a href="#flow">흐름</a>
+        <a href="#workspace">작업 화면</a>
         <a href="#features">기능</a>
         <a href="#use">활용</a>
       </div>
@@ -537,10 +630,10 @@
         <div class="app-icon-stage" aria-hidden="true">
           <img class="app-icon" src="Resources/AppIcon.png" alt="">
         </div>
-        <h1>Mac에서 들리는 소리를 바로 기록하고 번역합니다.</h1>
+        <h1>Mac에서 들리는 소리를 작게 띄우고 오래 기록합니다.</h1>
         <p class="hero-copy">
           AirTranslate는 외부 마이크가 아니라 Mac 시스템 오디오를 듣습니다.
-          영상, 회의, 강의에서 나오는 음성을 실시간 기록으로 남기고 번역까지 이어줍니다.
+          영상, 회의, 강의에서 나오는 음성을 실시간 기록으로 남기고, 번역과 플로팅 자막까지 한 흐름으로 이어줍니다.
         </p>
         <div class="hero-actions">
           <a class="button" href="#flow">제품 둘러보기</a>
@@ -551,10 +644,10 @@
 
     <section id="flow" class="section">
       <div class="section-heading">
-        <h2>재생하면 기록되고, 침묵하면 정리됩니다.</h2>
+        <h2>기록은 이어지고, 화면은 흐트러지지 않습니다.</h2>
         <p>
-          실시간 기록은 채팅처럼 흩어지지 않고 메모처럼 계속 이어집니다.
-          숨 고르기 구간에는 문단과 번역 흐름을 정돈해서 읽기 쉬운 기록으로 만듭니다.
+          실시간 기록은 채팅처럼 흩어지지 않고 현재 세션 안에 쌓입니다.
+          길어진 기록은 패널 안에서 스크롤되고, 캡처를 멈추면 저장소에서 다시 열어 편집할 수 있습니다.
         </p>
       </div>
 
@@ -563,34 +656,34 @@
           <div class="pixel-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24"><path d="M4 7h3v10H4V7Zm5 3h3v7H9v-7Zm5-5h3v12h-3V5Zm5 7h2v5h-2v-5Z"/></svg>
           </div>
-          <h3>시스템 오디오 캡처</h3>
-          <p>AirPods나 스피커로 들리는 Mac 재생음을 대상으로 기록합니다.</p>
+          <h3>Mac 재생음 캡처</h3>
+          <p>AirPods나 스피커로 들리는 시스템 오디오를 대상으로 기록합니다.</p>
         </article>
         <article class="step">
           <div class="pixel-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24"><path d="M5 4h14v3H5V4Zm0 5h11v3H5V9Zm0 5h14v3H5v-3Zm0 5h8v2H5v-2Z"/></svg>
           </div>
-          <h3>실시간 기록</h3>
-          <p>음성이 들어오는 즉시 원문 패널에 이어 쓰고, 중간 결과도 부드럽게 갱신합니다.</p>
+          <h3>스크롤 패널 기록</h3>
+          <p>원문과 번역은 고정된 패널 안에서 쌓이고, 긴 기록은 내부 스크롤로 읽습니다.</p>
         </article>
         <article class="step">
           <div class="pixel-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24"><path d="M3 5h8v3H8v11H5V8H3V5Zm9 4h9v3h-9V9Zm0 5h7v3h-7v-3Zm0 5h5v2h-5v-2Z"/></svg>
           </div>
-          <h3>번역 동기화</h3>
-          <p>원문 흐름과 같은 구조로 번역을 배치해 양쪽 패널을 함께 읽을 수 있습니다.</p>
+          <h3>비동기 번역</h3>
+          <p>최신 요청 중심으로 번역을 처리해 긴 세션에서도 UI 부담을 줄입니다.</p>
         </article>
         <article class="step">
           <div class="pixel-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24"><path d="M5 3h14v18H5V3Zm3 4v2h8V7H8Zm0 4v2h8v-2H8Zm0 4v2h5v-2H8Z"/></svg>
           </div>
-          <h3>텍스트 저장</h3>
-          <p>캡처를 마치면 날짜와 내용 기반 파일명으로 일반 텍스트 기록을 저장합니다.</p>
+          <h3>저장소 관리</h3>
+          <p>원문+번역은 파일을 분리하되 목록에서는 하나의 묶음으로 관리합니다.</p>
         </article>
       </div>
     </section>
 
-    <section class="section">
+    <section id="workspace" class="section">
       <div class="showcase">
         <div class="panel live-window" aria-label="AirTranslate 기록 화면 예시">
           <div class="window-bar" aria-hidden="true">
@@ -598,31 +691,54 @@
             <span class="dot yellow"></span>
             <span class="dot green"></span>
           </div>
+          <div class="compact-toolbar" aria-hidden="true">
+            <span class="tool-icon">▣</span>
+            <span class="transport">
+              <span class="tool-icon">☾</span>
+              <span class="tool-icon active">▶</span>
+              <span class="tool-icon">▤</span>
+            </span>
+          </div>
+          <div class="session-strip" aria-hidden="true">
+            <span class="session-chip"></span>
+            <span class="session-actions"><span></span><span></span><span></span></span>
+          </div>
           <div class="caption-grid">
             <div class="caption-pane">
-              <strong>원문</strong>
+              <div class="pane-head">
+                <strong>원문</strong>
+                <span class="copy-dot">✓</span>
+              </div>
               <div class="caption-line"></div>
               <div class="caption-line mid"></div>
               <div class="caption-line short"></div>
               <div class="caption-line"></div>
+              <div class="caption-line mid"></div>
+              <div class="caption-line short"></div>
             </div>
             <div class="caption-pane">
-              <strong>번역</strong>
+              <div class="pane-head">
+                <strong>번역</strong>
+                <span class="copy-dot">⧉</span>
+              </div>
               <div class="caption-line mid"></div>
               <div class="caption-line"></div>
               <div class="caption-line short"></div>
               <div class="caption-line mid"></div>
+              <div class="caption-line"></div>
+              <div class="caption-line short"></div>
             </div>
           </div>
         </div>
 
         <div class="panel">
-          <h3>앱 안에서는 기록, 화면 위에는 자막</h3>
+          <h3>낮은 아이콘 바, 긴 기록은 패널 안으로</h3>
           <p>
-            메인 앱에서는 원문과 번역을 넓게 비교하고, 플로팅 자막은 영화 자막처럼 필요한 내용만 화면 위에 띄웁니다.
+            메인 화면의 상단 컨트롤은 상태, 시작, 플로팅 자막을 아이콘만으로 정리해 세로 공간을 줄였습니다.
+            긴 원문과 번역은 카드 높이를 밀어내지 않고 각 패널 안에서 스크롤됩니다.
           </p>
           <p>
-            상태바 패널에서 보기 방식, 글자 크기, 표시 줄 수를 빠르게 바꾸고, 기록 중에도 앱 화면을 방해하지 않게 사용할 수 있습니다.
+            복사 버튼은 눌림과 체크 피드백을 제공하고, 저장소 편집창에서는 Apple Intelligence 글쓰기 도구로 저장본을 바로 다듬을 수 있습니다.
           </p>
         </div>
       </div>
@@ -631,24 +747,39 @@
     <section id="features" class="section">
       <div class="section-heading">
         <h2>실시간 앱답게, 빠르게 보이고 오래 남습니다.</h2>
-        <p>기록의 흐름을 끊지 않으면서도 사용자가 나중에 다시 활용할 수 있도록 설계했습니다.</p>
+        <p>기록의 흐름을 끊지 않으면서도 긴 세션, 저장, 다시 읽기까지 버틸 수 있도록 설계했습니다.</p>
       </div>
 
       <div class="feature-grid">
         <article class="feature">
           <div class="pixel-icon" aria-hidden="true">A</div>
           <h3>사용자가 고르는 언어</h3>
-          <p>원문과 번역 언어를 직접 선택해 한국어와 영어 흐름을 명확하게 제어합니다.</p>
+          <p>영어, 한국어, 일본어, 중국어 간체, 스페인어, 프랑스어, 독일어 중 원문과 번역 언어를 선택합니다.</p>
         </article>
         <article class="feature">
           <div class="pixel-icon" aria-hidden="true">¶</div>
           <h3>문단 정리</h3>
-          <p>긴 침묵 구간에는 기록을 삭제하지 않고 문장과 문단을 보기 좋게 정리합니다.</p>
+          <p>긴 침묵 구간에는 기록을 삭제하지 않고 문장과 문단을 보기 좋게 나눕니다.</p>
         </article>
         <article class="feature">
           <div class="pixel-icon" aria-hidden="true">TXT</div>
           <h3>일반 텍스트 저장</h3>
-          <p>JSON이 아니라 기록된 원문 텍스트 그대로 저장해 편집과 재활용이 쉽습니다.</p>
+          <p>원문+번역은 같은 기본 이름의 <code>_original.txt</code>, <code>_translation.txt</code> 두 파일로 나누어 남깁니다.</p>
+        </article>
+        <article class="feature">
+          <div class="pixel-icon" aria-hidden="true">▤</div>
+          <h3>묶음 저장소</h3>
+          <p>분리된 원문과 번역 파일을 저장소 목록에서는 하나로 묶고, 상세 화면에서는 두 패널로 함께 보여줍니다.</p>
+        </article>
+        <article class="feature">
+          <div class="pixel-icon" aria-hidden="true">⧉</div>
+          <h3>복사와 글쓰기 도구</h3>
+          <p>원문과 번역 패널을 복사하고, 저장된 텍스트는 Apple Intelligence Writing Tools로 교정하거나 다시 쓸 수 있습니다.</p>
+        </article>
+        <article class="feature">
+          <div class="pixel-icon" aria-hidden="true">⌂</div>
+          <h3>로컬 중심</h3>
+          <p>앱 자체 서버, 계정, API 키, 광고 SDK, 분석 SDK 없이 macOS 프레임워크 중심으로 동작합니다.</p>
         </article>
       </div>
     </section>
@@ -666,7 +797,7 @@
         </article>
         <article class="use-case">
           <h3>온라인 회의</h3>
-          <p>중요한 발화를 실시간 기록으로 남기고, 나중에 텍스트 파일로 다시 봅니다.</p>
+          <p>중요한 발화를 실시간 기록으로 남기고, 필요한 패널만 복사해 바로 공유합니다.</p>
         </article>
         <article class="use-case">
           <h3>강의와 튜토리얼</h3>
@@ -679,8 +810,8 @@
       <div class="final-panel">
         <img src="Resources/AppIcon.png" alt="AirTranslate 앱 아이콘">
         <div>
-          <h2>들리는 순간, 기록으로 바뀌는 Mac 앱.</h2>
-          <p>AirTranslate는 시스템 오디오 기반 실시간 기록과 번역을 하나의 조용한 작업 공간으로 묶습니다.</p>
+          <h2>작게 띄우고, 길게 남기는 Mac 기록 번역 앱.</h2>
+          <p>AirTranslate는 시스템 오디오 기반 실시간 기록, 번역, 플로팅 자막, 로컬 저장을 하나의 조용한 작업 공간으로 묶습니다.</p>
         </div>
         <a class="button secondary" href="#top">맨 위로</a>
       </div>

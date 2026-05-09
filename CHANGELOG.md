@@ -2,6 +2,24 @@
 
 All notable changes to AirTranslate are documented in this file.
 
+## Unreleased
+
+### Added
+
+- Added an Apple Intelligence Writing Tools button to the saved transcript editor.
+- Added grouped saved transcript display for original-plus-translation saves.
+
+### Changed
+
+- Saved `Original + Translation` transcripts are now stored as separate `*_original.txt` and `*_translation.txt` files that share the same base name.
+- The library presents those paired files as one saved transcript and shows original and translation editors in the same detail section.
+- The library row hit area now spans the full row, making saved transcript selection easier.
+
+### Verified
+
+- `swift build` passes.
+- The rebuilt `dist/AirTranslate.app` opens the library, groups original/translation pairs, shows both panes, and opens the system Writing Tools popover.
+
 ## 1.1.0 - 2026-05-10 - Live Audio Meter and Header Controls
 
 ### Added

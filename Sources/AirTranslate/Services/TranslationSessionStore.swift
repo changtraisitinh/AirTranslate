@@ -90,6 +90,7 @@ final class TranslationSessionStore {
     var savedTranscripts: [SavedTranscript] = []
     var selectedSavedTranscriptID: String?
     var savedDraftSourceText = ""
+    var savedDraftTranslationText = ""
     private(set) var latestAudioLevel: Float?
     var modelAvailabilityByModelID = Dictionary(
         uniqueKeysWithValues: IntelligenceModel.allCases.map {
@@ -127,6 +128,22 @@ final class TranslationSessionStore {
     private var lastSpokenTranslatedText = ""
     private var spokenTranslationUnitKeys: Set<String> = []
     private var spokenTranslationUnitKeyOrder: [String] = []
+
+    private enum SavedTranscriptPart {
+        case original
+        case translation
+    }
+
+    private struct SavedTranscriptFile {
+        let fileName: String
+        let text: String
+        let updatedAt: Date
+    }
+
+    private struct PartialSavedTranscript {
+        var original: SavedTranscriptFile?
+        var translation: SavedTranscriptFile?
+    }
 
     init() {
         restoreSelectedSettings()
@@ -288,45 +305,58 @@ final class TranslationSessionStore {
         isRunning || !lines.isEmpty
     }
 
+    var selectedSavedTranscript: SavedTranscript? {
+        guard let selectedSavedTranscriptID else { return nil }
+        return savedTranscripts.first { $0.id == selectedSavedTranscriptID }
+    }
+
     func selectSavedTranscript(_ id: String) {
         guard let transcript = savedTranscripts.first(where: { $0.id == id }) else { return }
 
         selectedSavedTranscriptID = id
         savedDraftSourceText = transcript.sourceText
+        savedDraftTranslationText = transcript.translatedText ?? ""
     }
 
     func saveSelectedTranscriptEdits() {
-        guard let selectedSavedTranscriptID,
-              let index = savedTranscripts.firstIndex(where: { $0.id == selectedSavedTranscriptID })
-        else {
-            return
-        }
+        guard let selectedTranscript = selectedSavedTranscript else { return }
 
         let sourceText = savedDraftSourceText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !sourceText.isEmpty else { return }
 
-        let updatedAt = Date()
-        guard writeTranscriptText(sourceText, fileName: selectedSavedTranscriptID) else { return }
-        savedTranscripts[index] = SavedTranscript(
-            fileName: selectedSavedTranscriptID,
-            sourceText: sourceText,
-            updatedAt: updatedAt
-        )
-        sortSavedTranscripts()
+        if selectedTranscript.isOriginalAndTranslation,
+           let translationFileName = selectedTranscript.translationFileName {
+            let translatedText = savedDraftTranslationText.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard writeTranscriptText(sourceText, fileName: selectedTranscript.sourceFileName),
+                  writeTranscriptText(translatedText, fileName: translationFileName)
+            else {
+                return
+            }
+        } else {
+            guard writeTranscriptText(sourceText, fileName: selectedTranscript.sourceFileName) else { return }
+        }
+
+        let selectedID = selectedTranscript.id
+        loadSavedTranscripts()
+        selectSavedTranscript(selectedID)
     }
 
     func deleteSelectedTranscript() {
-        guard let selectedSavedTranscriptID else { return }
+        guard let selectedTranscript = selectedSavedTranscript else { return }
 
-        savedTranscripts.removeAll { $0.id == selectedSavedTranscriptID }
-        try? FileManager.default.removeItem(at: transcriptURL(fileName: selectedSavedTranscriptID))
-        if activeAutosaveTranscriptID == selectedSavedTranscriptID {
+        savedTranscripts.removeAll { $0.id == selectedTranscript.id }
+        try? FileManager.default.removeItem(at: transcriptURL(fileName: selectedTranscript.sourceFileName))
+        if let translationFileName = selectedTranscript.translationFileName {
+            try? FileManager.default.removeItem(at: transcriptURL(fileName: translationFileName))
+        }
+        if activeAutosaveTranscriptID == selectedTranscript.id {
             activeAutosaveTranscriptID = nil
             activeAutosaveSourceText = ""
             activeAutosaveTranslatedText = ""
         }
         self.selectedSavedTranscriptID = nil
         savedDraftSourceText = ""
+        savedDraftTranslationText = ""
     }
 
     func deleteAllSavedTranscripts() {
@@ -346,6 +376,7 @@ final class TranslationSessionStore {
             savedTranscripts.removeAll()
             selectedSavedTranscriptID = nil
             savedDraftSourceText = ""
+            savedDraftTranslationText = ""
             activeAutosaveTranscriptID = nil
             activeAutosaveSourceText = ""
             activeAutosaveTranslatedText = ""
@@ -510,23 +541,83 @@ final class TranslationSessionStore {
                 includingPropertiesForKeys: [.contentModificationDateKey],
                 options: [.skipsHiddenFiles]
             )
-            savedTranscripts = fileURLs
+            let transcriptFiles = fileURLs
                 .filter { $0.pathExtension == "txt" }
-                .compactMap { fileURL in
+                .compactMap { fileURL -> SavedTranscriptFile? in
                     guard let text = try? String(contentsOf: fileURL, encoding: .utf8) else {
                         return nil
                     }
                     let values = try? fileURL.resourceValues(forKeys: [.contentModificationDateKey])
-                    return SavedTranscript(
+                    return SavedTranscriptFile(
                         fileName: fileURL.lastPathComponent,
-                        sourceText: text.trimmingCharacters(in: .whitespacesAndNewlines),
+                        text: text.trimmingCharacters(in: .whitespacesAndNewlines),
                         updatedAt: values?.contentModificationDate ?? Date.distantPast
                     )
                 }
+            savedTranscripts = groupedSavedTranscripts(from: transcriptFiles)
             sortSavedTranscripts()
         } catch {
             savedTranscripts = []
         }
+    }
+
+    private func groupedSavedTranscripts(from files: [SavedTranscriptFile]) -> [SavedTranscript] {
+        var standaloneTranscripts: [SavedTranscript] = []
+        var partialTranscripts: [String: PartialSavedTranscript] = [:]
+
+        for file in files {
+            if let variant = transcriptVariantInfo(file.fileName) {
+                var partial = partialTranscripts[variant.baseFileName] ?? PartialSavedTranscript()
+                switch variant.part {
+                case .original:
+                    partial.original = file
+                case .translation:
+                    partial.translation = file
+                }
+                partialTranscripts[variant.baseFileName] = partial
+            } else {
+                standaloneTranscripts.append(
+                    SavedTranscript(
+                        fileName: file.fileName,
+                        sourceText: file.text,
+                        updatedAt: file.updatedAt
+                    )
+                )
+            }
+        }
+
+        for (baseFileName, partial) in partialTranscripts {
+            if let original = partial.original, let translation = partial.translation {
+                standaloneTranscripts.append(
+                    SavedTranscript(
+                        id: baseFileName,
+                        sourceFileName: original.fileName,
+                        translationFileName: translation.fileName,
+                        sourceText: original.text,
+                        translatedText: translation.text,
+                        updatedAt: max(original.updatedAt, translation.updatedAt)
+                    )
+                )
+            } else if let original = partial.original {
+                standaloneTranscripts.append(
+                    SavedTranscript(
+                        fileName: original.fileName,
+                        sourceText: original.text,
+                        updatedAt: original.updatedAt
+                    )
+                )
+            } else if let translation = partial.translation {
+                standaloneTranscripts.append(
+                    SavedTranscript(
+                        fileName: translation.fileName,
+                        sourceText: translation.text,
+                        updatedAt: translation.updatedAt
+                    )
+                )
+            }
+        }
+
+        return standaloneTranscripts
     }
 
     private func stageTranscriptForSave(_ sourceText: String, translatedText: String? = nil) {
@@ -564,9 +655,7 @@ final class TranslationSessionStore {
         activeAutosaveTranscriptID = nil
         activeAutosaveSourceText = ""
         activeAutosaveTranslatedText = ""
-        for savedFile in savedFiles {
-            upsertSavedTranscript(fileName: savedFile.fileName, sourceText: savedFile.text, updatedAt: updatedAt)
-        }
+        loadSavedTranscripts()
         return true
     }
 
@@ -614,25 +703,6 @@ final class TranslationSessionStore {
         }
     }
 
-    private func upsertSavedTranscript(fileName: String, sourceText: String, updatedAt: Date) {
-        let transcript = SavedTranscript(
-            fileName: fileName,
-            sourceText: sourceText,
-            updatedAt: updatedAt
-        )
-
-        if let index = savedTranscripts.firstIndex(where: { $0.id == fileName }) {
-            savedTranscripts[index] = transcript
-        } else {
-            savedTranscripts.insert(transcript, at: 0)
-        }
-
-        if selectedSavedTranscriptID == fileName {
-            savedDraftSourceText = sourceText
-        }
-        sortSavedTranscripts()
-    }
-
     private func showToast(_ message: String) {
         toastDismissTask?.cancel()
         toastMessage = message
@@ -666,7 +736,28 @@ final class TranslationSessionStore {
 
     private func transcriptVariantFileName(_ fileName: String, suffix: String) -> String {
         let stem = fileName.hasSuffix(".txt") ? String(fileName.dropLast(4)) : fileName
+        return "\(stem)_\(suffix).txt"
+    }
+
+    private func legacyTranscriptVariantFileName(_ fileName: String, suffix: String) -> String {
+        let stem = fileName.hasSuffix(".txt") ? String(fileName.dropLast(4)) : fileName
         return "\(stem)-\(suffix).txt"
+    }
+
+    private func transcriptVariantInfo(_ fileName: String) -> (baseFileName: String, part: SavedTranscriptPart)? {
+        let variants: [(suffix: String, part: SavedTranscriptPart)] = [
+            ("_original.txt", .original),
+            ("_translation.txt", .translation),
+            ("-original.txt", .original),
+            ("-translation.txt", .translation)
+        ]
+
+        for variant in variants where fileName.hasSuffix(variant.suffix) {
+            let stem = String(fileName.dropLast(variant.suffix.count))
+            return ("\(stem).txt", variant.part)
+        }
+
+        return nil
     }
 
     private func makeTranscriptFileName(for sourceText: String, date: Date) -> String {
@@ -679,7 +770,7 @@ final class TranslationSessionStore {
         var suffix = 2
 
         while transcriptFileExists(fileName) {
-            fileName = "\(baseName)-\(suffix).txt"
+            fileName = "\(baseName)_\(suffix).txt"
             suffix += 1
         }
 
@@ -690,7 +781,9 @@ final class TranslationSessionStore {
         let fileNames = [
             fileName,
             transcriptVariantFileName(fileName, suffix: "original"),
-            transcriptVariantFileName(fileName, suffix: "translation")
+            transcriptVariantFileName(fileName, suffix: "translation"),
+            legacyTranscriptVariantFileName(fileName, suffix: "original"),
+            legacyTranscriptVariantFileName(fileName, suffix: "translation")
         ]
         return fileNames.contains { FileManager.default.fileExists(atPath: transcriptURL(fileName: $0).path) }
     }

@@ -1,9 +1,15 @@
 import AppKit
 import SwiftUI
 
+private enum DraftEditorField: Hashable {
+    case source
+    case translation
+}
+
 struct TranscriptLibraryView: View {
     @Bindable var session: TranslationSessionStore
     @Environment(\.dismiss) private var dismiss
+    @FocusState private var focusedDraftEditor: DraftEditorField?
     @State private var isDeleteAllConfirmationPresented = false
     @State private var isCopyFeedbackVisible = false
     @State private var copyFeedbackToken = 0
@@ -133,9 +139,7 @@ struct TranscriptLibraryView: View {
 
     @ViewBuilder
     private var editor: some View {
-        if session.selectedSavedTranscriptID == nil {
-            ContentUnavailableView(AppText.noSavedTranscriptSelected, systemImage: "doc.text")
-        } else {
+        if let selectedTranscript = session.selectedSavedTranscript {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 8) {
                     Text(AppText.editSaved)
@@ -167,14 +171,7 @@ struct TranscriptLibraryView: View {
                     .disabled(!canCopyDraft)
                 }
 
-                TextEditor(text: $session.savedDraftSourceText)
-                    .font(.body)
-                    .scrollContentBackground(.hidden)
-                    .background(.quaternary.opacity(0.18), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .strokeBorder(Color.primary.opacity(0.08))
-                    }
+                draftEditor(for: selectedTranscript)
 
                 HStack {
                     Button {
@@ -194,20 +191,139 @@ struct TranscriptLibraryView: View {
                 }
             }
             .padding(18)
+        } else {
+            ContentUnavailableView(AppText.noSavedTranscriptSelected, systemImage: "doc.text")
         }
     }
 
+    @ViewBuilder
+    private func draftEditor(for transcript: SavedTranscript) -> some View {
+        if transcript.isOriginalAndTranslation {
+            HStack(alignment: .top, spacing: 12) {
+                draftEditorPane(
+                    title: AppText.original,
+                    text: $session.savedDraftSourceText,
+                    field: .source
+                )
+
+                draftEditorPane(
+                    title: AppText.translation,
+                    text: $session.savedDraftTranslationText,
+                    field: .translation
+                )
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            draftEditorPane(
+                title: AppText.original,
+                text: $session.savedDraftSourceText,
+                field: .source
+            )
+        }
+    }
+
+    private func draftEditorPane(
+        title: String,
+        text: Binding<String>,
+        field: DraftEditorField
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                Spacer(minLength: 0)
+
+                writingToolsButton(for: field)
+                    .disabled(!hasDraftText(for: field))
+            }
+
+            TextEditor(text: text)
+                .font(.body)
+                .focused($focusedDraftEditor, equals: field)
+                .writingToolsBehavior(.complete)
+                .scrollContentBackground(.hidden)
+                .background(.quaternary.opacity(0.18), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.08))
+                }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func writingToolsButton(for field: DraftEditorField) -> some View {
+        Button {
+            showWritingTools(for: field)
+        } label: {
+            Image(systemName: "sparkles")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color.secondary)
+                .frame(width: 28, height: 28)
+                .background {
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(Color.primary.opacity(0.05))
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.08))
+                }
+        }
+        .buttonStyle(.plain)
+        .help(AppText.appleIntelligenceWritingTools)
+        .accessibilityLabel(AppText.appleIntelligenceWritingTools)
+    }
+
     private var canCopyDraft: Bool {
-        session.savedDraftSourceText.rangeOfCharacter(from: .whitespacesAndNewlines.inverted) != nil
+        hasDraftText(for: .source) || hasDraftText(for: .translation)
+    }
+
+    private func hasDraftText(for field: DraftEditorField) -> Bool {
+        let text = switch field {
+        case .source:
+            session.savedDraftSourceText
+        case .translation:
+            session.savedDraftTranslationText
+        }
+        return text.rangeOfCharacter(from: .whitespacesAndNewlines.inverted) != nil
     }
 
     private func copyDraftText() -> Bool {
-        let trimmedText = session.savedDraftSourceText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedText.isEmpty else { return false }
+        let sourceText = session.savedDraftSourceText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let translatedText = session.savedDraftTranslationText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let copiedText: String
+
+        if session.selectedSavedTranscript?.isOriginalAndTranslation == true, !translatedText.isEmpty {
+            copiedText = "\(AppText.original)\n\(sourceText)\n\n\(AppText.translation)\n\(translatedText)"
+        } else {
+            copiedText = sourceText
+        }
+
+        guard !copiedText.isEmpty else { return false }
 
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(trimmedText, forType: .string)
+        NSPasteboard.general.setString(copiedText, forType: .string)
         return true
+    }
+
+    private func showWritingTools(for field: DraftEditorField) {
+        focusedDraftEditor = nil
+        DispatchQueue.main.async {
+            focusedDraftEditor = field
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(120)) {
+                _ = showWritingToolsForFocusedTextView()
+            }
+        }
+    }
+
+    @discardableResult
+    private func showWritingToolsForFocusedTextView() -> Bool {
+        guard let textView = NSApp.keyWindow?.firstResponder as? NSTextView else {
+            return false
+        }
+
+        return NSApp.sendAction(#selector(NSResponder.showWritingTools(_:)), to: textView, from: nil)
     }
 
     private func showCopyFeedback() {
@@ -248,7 +364,7 @@ private struct TranscriptLibraryRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
-            Image(systemName: isSelected ? "doc.text.fill" : "doc.text")
+            Image(systemName: transcript.isOriginalAndTranslation ? "doc.on.doc.fill" : (isSelected ? "doc.text.fill" : "doc.text"))
                 .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
                 .frame(width: 16)
 
@@ -257,9 +373,15 @@ private struct TranscriptLibraryRow: View {
                     .lineLimit(2)
                     .foregroundStyle(.primary)
 
-                Text(transcript.updatedAt, style: .date)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 5) {
+                    if transcript.isOriginalAndTranslation {
+                        Text(AppText.originalAndTranslation)
+                    }
+
+                    Text(transcript.updatedAt, style: .date)
+                }
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             }
 
             Spacer(minLength: 0)

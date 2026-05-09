@@ -172,6 +172,10 @@ enum AppText {
     )
     static let copy = localized(english: "Copy", korean: "복사")
     static let copied = localized(english: "Copied", korean: "복사됨")
+    static let appleIntelligenceWritingTools = localized(
+        english: "Apple Intelligence Writing Tools",
+        korean: "Apple Intelligence 글쓰기 도구"
+    )
     static func copyTranscriptPane(_ title: String) -> String {
         localized(english: "Copy \(title)", korean: "\(title) 복사")
     }
