@@ -2,25 +2,21 @@ import SwiftUI
 
 struct CaptionBoardView: View {
     @Bindable var session: TranslationSessionStore
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(AppText.liveCaptions)
-                        .font(.title2.weight(.semibold))
-
-                    Text(session.languageSummary)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                Label(
-                    session.isPaused ? AppText.paused : (session.isRunning ? AppText.listening : AppText.idle),
-                    systemImage: session.isPaused ? "pause.circle.fill" : (session.isRunning ? "waveform" : "pause.circle")
-                )
-                .foregroundStyle(session.isPaused ? .orange : (session.isRunning ? .green : .secondary))
+        VStack(alignment: .leading, spacing: 20) {
+            SessionOverviewCard(
+                title: AppText.liveCaptions,
+                subtitle: session.languageSummary,
+                modelDetail: session.selectedModel.detail,
+                isRunning: session.isRunning,
+                isPaused: session.isPaused,
+                isDubbingEnabled: session.isDubbingEnabled,
+                isTranscriptLintEnabled: session.isTranscriptLintEnabled,
+                modelTitle: session.selectedModel.title
+            ) {
+                openWindow(id: AirTranslateWindowID.floatingCaptions)
             }
 
             ScrollViewReader { proxy in
@@ -33,6 +29,12 @@ struct CaptionBoardView: View {
                                 description: Text(AppText.noCaptionsDescription)
                             )
                             .frame(maxWidth: .infinity, minHeight: 320)
+                            .padding(24)
+                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .strokeBorder(Color.primary.opacity(0.08))
+                            }
                         }
 
                         ForEach(session.lines) { line in
@@ -69,8 +71,18 @@ private struct CaptionLineView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
-            TranscriptPane(title: AppText.original, text: line.sourceText, isPrimary: true)
-            TranscriptPane(title: AppText.translation, text: line.translatedText, isPrimary: false)
+            TranscriptPane(
+                title: AppText.original,
+                description: AppText.originalDescription,
+                text: line.sourceText,
+                isPrimary: true
+            )
+            TranscriptPane(
+                title: AppText.translation,
+                description: AppText.translationDescription,
+                text: line.translatedText,
+                isPrimary: false
+            )
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }
@@ -78,146 +90,131 @@ private struct CaptionLineView: View {
 
 private struct TranscriptPane: View {
     let title: String
+    let description: String
     let text: String
     let isPrimary: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title)
-                .font(.headline)
+                .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
+
+            Text(description)
+                .font(.caption)
+                .foregroundStyle(.tertiary)
 
             StreamingTranscriptText(
                 text: text,
                 font: isPrimary ? .body : .body.weight(.medium)
             )
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, minHeight: 420, alignment: .topLeading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .padding(18)
+        .frame(maxWidth: .infinity, minHeight: 360, alignment: .topLeading)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.08))
+        }
     }
 }
 
-private struct StreamingTranscriptText: View {
-    let text: String
-    let font: Font
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    @State private var settledText = ""
-    @State private var appearingText = ""
-    @State private var appearingOpacity = 1.0
-    @State private var streamTask: Task<Void, Never>?
+private struct SessionOverviewCard: View {
+    let title: String
+    let subtitle: String
+    let modelDetail: String
+    let isRunning: Bool
+    let isPaused: Bool
+    let isDubbingEnabled: Bool
+    let isTranscriptLintEnabled: Bool
+    let modelTitle: String
+    let showFloatingCaptions: () -> Void
 
     var body: some View {
-        Text(renderedText)
-            .font(font)
-            .textSelection(.enabled)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-            .onAppear {
-                stream(to: text)
-            }
-            .onChange(of: text) { _, newText in
-                stream(to: newText)
-            }
-            .onDisappear {
-                streamTask?.cancel()
-            }
-    }
+        HStack(alignment: .top, spacing: 20) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(title)
+                    .font(.title2.weight(.semibold))
 
-    private var renderedText: AttributedString {
-        var rendered = AttributedString(settledText)
-        var appearing = AttributedString(appearingText)
-        appearing.foregroundColor = .primary.opacity(appearingOpacity)
-        rendered.append(appearing)
-        return rendered
-    }
+                Text(subtitle)
+                    .font(.headline.weight(.medium))
+                    .foregroundStyle(.secondary)
 
-    private var visibleText: String {
-        settledText + appearingText
-    }
+                Text(modelDetail)
+                    .font(.subheadline)
+                    .foregroundStyle(.tertiary)
 
-    private func stream(to newText: String) {
-        streamTask?.cancel()
+                HStack(spacing: 8) {
+                    SessionMetadataChip(systemImage: "brain.head.profile", title: modelTitle)
+                    SessionMetadataChip(systemImage: "square.and.arrow.down", title: AppText.autoSave)
 
-        if !appearingText.isEmpty {
-            settledText += appearingText
-            appearingText = ""
-            appearingOpacity = 1
-        }
+                    if isDubbingEnabled {
+                        SessionMetadataChip(systemImage: "waveform.and.mic", title: AppText.dubbing)
+                    }
 
-        guard !newText.isEmpty else {
-            settledText = ""
-            appearingText = ""
-            return
-        }
-
-        guard !reduceMotion else {
-            settledText = newText
-            return
-        }
-
-        guard newText.hasPrefix(visibleText), newText.count > visibleText.count else {
-            settledText = newText
-            appearingText = ""
-            appearingOpacity = 1
-            return
-        }
-
-        let remainingText = String(newText.dropFirst(visibleText.count))
-        let chunkSize = remainingText.count > 72 ? 4 : (remainingText.count > 28 ? 3 : 2)
-        let delay = remainingText.count > 72 ? 18_000_000 : (remainingText.count > 28 ? 28_000_000 : 38_000_000)
-        let fadeDuration = remainingText.count > 72 ? 0.12 : 0.18
-        let chunks = remainingText.chunkedForTranscriptStreaming(maxCharacters: chunkSize)
-
-        streamTask = Task { @MainActor in
-            for chunk in chunks {
-                if Task.isCancelled {
-                    return
+                    if isTranscriptLintEnabled {
+                        SessionMetadataChip(systemImage: "text.badge.checkmark", title: AppText.transcriptLint)
+                    }
                 }
-
-                if !appearingText.isEmpty {
-                    settledText += appearingText
-                }
-
-                appearingText = chunk
-                appearingOpacity = 0.12
-
-                withAnimation(.easeOut(duration: fadeDuration)) {
-                    appearingOpacity = 1
-                }
-
-                try? await Task.sleep(nanoseconds: UInt64(delay))
             }
 
-            if !appearingText.isEmpty {
-                settledText += appearingText
-                appearingText = ""
-                appearingOpacity = 1
+            Spacer(minLength: 0)
+
+            VStack(alignment: .trailing, spacing: 12) {
+                SessionStatusBadge(isRunning: isRunning, isPaused: isPaused)
+
+                Button(action: showFloatingCaptions) {
+                    Label(AppText.showFloatingCaptions, systemImage: "macwindow.on.rectangle")
+                }
+                .buttonStyle(.bordered)
             }
+        }
+        .padding(20)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.08))
         }
     }
 }
 
-private extension String {
-    func chunkedForTranscriptStreaming(maxCharacters: Int) -> [String] {
-        guard maxCharacters > 0 else { return [self] }
+private struct SessionStatusBadge: View {
+    let isRunning: Bool
+    let isPaused: Bool
 
-        var chunks: [String] = []
-        var current = ""
+    private var title: String {
+        isPaused ? AppText.paused : (isRunning ? AppText.listening : AppText.idle)
+    }
 
-        for character in self {
-            current.append(character)
-            if current.count >= maxCharacters || character.isWhitespace || character.isPunctuation {
-                chunks.append(current)
-                current = ""
-            }
-        }
+    private var systemImage: String {
+        isPaused ? "pause.circle.fill" : (isRunning ? "waveform.circle.fill" : "moon.zzz.fill")
+    }
 
-        if !current.isEmpty {
-            chunks.append(current)
-        }
+    private var foregroundStyle: Color {
+        isPaused ? .orange : (isRunning ? .green : .secondary)
+    }
 
-        return chunks
+    var body: some View {
+        Label(title, systemImage: systemImage)
+            .font(.subheadline.weight(.semibold))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(foregroundStyle.opacity(0.12), in: Capsule())
+            .foregroundStyle(foregroundStyle)
+            .accessibilityElement(children: .combine)
+    }
+}
+
+private struct SessionMetadataChip: View {
+    let systemImage: String
+    let title: String
+
+    var body: some View {
+        Label(title, systemImage: systemImage)
+            .font(.caption.weight(.medium))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(.quaternary.opacity(0.45), in: Capsule())
+            .foregroundStyle(.secondary)
     }
 }

@@ -5,15 +5,14 @@ import SwiftUI
 struct AirTranslateApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var session = TranslationSessionStore()
+    @State private var menuBarPanelController = MenuBarPanelController()
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup("AirTranslate", id: AirTranslateWindowID.main) {
             ContentView(session: session)
                 .frame(minWidth: 900, minHeight: 560)
+                .background(MenuBarPanelInstaller(session: session, controller: menuBarPanelController))
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
-                    session.prepareForTermination()
-                }
-                .onDisappear {
                     session.prepareForTermination()
                 }
         }
@@ -21,8 +20,15 @@ struct AirTranslateApp: App {
             CommandGroup(replacing: .newItem) {}
         }
 
+        Window(AppText.floatingCaptions, id: AirTranslateWindowID.floatingCaptions) {
+            FloatingCaptionWindowView(session: session)
+        }
+        .defaultSize(width: 720, height: 170)
+        .windowStyle(.plain)
+        .restorationBehavior(.disabled)
+
         Settings {
-            SettingsView()
+            SettingsView(session: session)
         }
     }
 }

@@ -9,6 +9,9 @@ private enum SettingsKey {
     static let selectedModelID = "selectedModelID"
     static let isDubbingEnabled = "isDubbingEnabled"
     static let isTranscriptLintEnabled = "isTranscriptLintEnabled"
+    static let floatingCaptionDisplayMode = "floatingCaptionDisplayMode"
+    static let floatingCaptionTextSize = "floatingCaptionTextSize"
+    static let floatingCaptionLineCount = "floatingCaptionLineCount"
 }
 
 @Observable
@@ -29,6 +32,15 @@ final class TranslationSessionStore {
         didSet { persistSelectedSettings() }
     }
     var isTranscriptLintEnabled = false {
+        didSet { persistSelectedSettings() }
+    }
+    var floatingCaptionDisplayMode = FloatingCaptionDisplayMode.originalAndTranslation {
+        didSet { persistSelectedSettings() }
+    }
+    var floatingCaptionTextSize = FloatingCaptionTextSize.medium {
+        didSet { persistSelectedSettings() }
+    }
+    var floatingCaptionLineCount = FloatingCaptionLineCount.three {
         didSet { persistSelectedSettings() }
     }
     var statusMessage = AppText.ready
@@ -168,6 +180,24 @@ final class TranslationSessionStore {
         AppText.languageSummary(source: sourceLanguage.localizedTitle, target: targetLanguage.localizedTitle)
     }
 
+    var floatingSourceText: String {
+        floatingCaptionText(from: lines.last?.sourceText)
+    }
+
+    var floatingTranslationText: String {
+        guard let translatedText = lines.last?.translatedText.trimmingCharacters(in: .whitespacesAndNewlines),
+              translatedText != AppText.translating
+        else {
+            return ""
+        }
+
+        return floatingCaptionText(from: translatedText)
+    }
+
+    var hasFloatingCaptionContent: Bool {
+        !floatingSourceText.isEmpty || !floatingTranslationText.isEmpty
+    }
+
     func selectSavedTranscript(_ id: String) {
         guard let transcript = savedTranscripts.first(where: { $0.id == id }) else { return }
 
@@ -239,6 +269,19 @@ final class TranslationSessionStore {
         if defaults.object(forKey: SettingsKey.isTranscriptLintEnabled) != nil {
             isTranscriptLintEnabled = defaults.bool(forKey: SettingsKey.isTranscriptLintEnabled)
         }
+        if let modeID = defaults.string(forKey: SettingsKey.floatingCaptionDisplayMode),
+           let mode = FloatingCaptionDisplayMode(rawValue: modeID) {
+            floatingCaptionDisplayMode = mode
+        }
+        if let sizeID = defaults.string(forKey: SettingsKey.floatingCaptionTextSize),
+           let size = FloatingCaptionTextSize(rawValue: sizeID) {
+            floatingCaptionTextSize = size
+        }
+        if let lineCountID = defaults.string(forKey: SettingsKey.floatingCaptionLineCount),
+           let rawValue = Int(lineCountID),
+           let lineCount = FloatingCaptionLineCount(rawValue: rawValue) {
+            floatingCaptionLineCount = lineCount
+        }
     }
 
     private func persistSelectedSettings() {
@@ -250,6 +293,15 @@ final class TranslationSessionStore {
         defaults.set(selectedModel.id, forKey: SettingsKey.selectedModelID)
         defaults.set(isDubbingEnabled, forKey: SettingsKey.isDubbingEnabled)
         defaults.set(isTranscriptLintEnabled, forKey: SettingsKey.isTranscriptLintEnabled)
+        defaults.set(floatingCaptionDisplayMode.id, forKey: SettingsKey.floatingCaptionDisplayMode)
+        defaults.set(floatingCaptionTextSize.id, forKey: SettingsKey.floatingCaptionTextSize)
+        defaults.set(floatingCaptionLineCount.id, forKey: SettingsKey.floatingCaptionLineCount)
+    }
+
+    private func floatingCaptionText(from text: String?) -> String {
+        guard let text else { return "" }
+
+        return text.floatingCaptionTail(maxLines: floatingCaptionLineCount.rawValue)
     }
 
     private func loadSavedTranscripts() {

@@ -15,6 +15,7 @@ enum AppText {
     static let capture = localized(english: "Capture", korean: "캡처")
     static let start = localized(english: "Start", korean: "시작")
     static let stop = localized(english: "Stop", korean: "중지")
+    static let close = localized(english: "Close", korean: "닫기")
     static let pause = localized(english: "Pause", korean: "일시정지")
     static let resume = localized(english: "Resume", korean: "재개")
     static let languages = localized(english: "Languages", korean: "언어")
@@ -23,6 +24,31 @@ enum AppText {
     static let model = localized(english: "Model", korean: "모델")
     static let output = localized(english: "Output", korean: "출력")
     static let dubbing = localized(english: "Dubbing", korean: "더빙")
+    static let menuBarTitle = localized(english: "Captions", korean: "자막")
+    static let menuBarRunningTitle = localized(english: "Live", korean: "전사중")
+    static let menuBarPausedTitle = localized(english: "Paused", korean: "일시정지")
+    static let floatingCaptions = localized(english: "Floating Captions", korean: "플로팅 자막")
+    static let showFloatingCaptions = localized(english: "Show Floating Captions", korean: "플로팅 자막 보기")
+    static let hideFloatingCaptions = localized(english: "Hide Floating Captions", korean: "플로팅 자막 숨기기")
+    static let openMainWindow = localized(english: "Open Main Window", korean: "메인 창 열기")
+    static let floatingDisplay = localized(english: "Floating Display", korean: "플로팅 표시")
+    static let floatingDisplayDescription = localized(
+        english: "Choose what appears in the detachable floating caption window.",
+        korean: "따로 띄우는 플로팅 자막 창에 표시할 내용을 선택합니다."
+    )
+    static let floatingTextSize = localized(english: "Floating Text Size", korean: "플로팅 글자 크기")
+    static let floatingLineCount = localized(english: "Floating Lines", korean: "플로팅 표시 줄 수")
+    static let originalOnly = localized(english: "Original", korean: "원문")
+    static let originalAndTranslation = localized(english: "Original + Translation", korean: "원문 + 번역")
+    static let translationOnly = localized(english: "Translation", korean: "번역")
+    static let textSizeSmall = localized(english: "Small", korean: "작게")
+    static let textSizeMedium = localized(english: "Medium", korean: "보통")
+    static let textSizeLarge = localized(english: "Large", korean: "크게")
+    static let textSizeExtraLarge = localized(english: "Extra Large", korean: "아주 크게")
+    static let noFloatingCaptionsYet = localized(
+        english: "Live captions will appear here.",
+        korean: "실시간 자막이 여기에 표시됩니다."
+    )
     static let transcriptLint = localized(english: "Transcript Word Lint", korean: "전사 단어 린트")
     static let transcriptLintDescription = localized(
         english: "During silence, conservatively fixes transcription words when macOS spelling suggestions are confident. It does not remove repeated sentences or transcript content.",
@@ -45,8 +71,17 @@ enum AppText {
     static let editSaved = localized(english: "Edit Saved", korean: "저장본 편집")
     static let title = localized(english: "Title", korean: "제목")
     static let original = localized(english: "Original", korean: "원문")
+    static let originalDescription = localized(
+        english: "Incoming speech with live paragraph cleanup.",
+        korean: "들어오는 음성을 실시간 문단 정리와 함께 보여줍니다."
+    )
     static let transcriptText = localized(english: "Transcript Text", korean: "전사 텍스트")
+    static let deleteSavedTranscript = localized(english: "Delete Transcript", korean: "전사 삭제")
     static let translation = localized(english: "Translation", korean: "번역")
+    static let translationDescription = localized(
+        english: "Translated output aligned to the same transcript flow.",
+        korean: "같은 전사 흐름에 맞춰 번역 결과를 정렬해 보여줍니다."
+    )
     static let saveEdits = localized(english: "Save Edits", korean: "수정 저장")
     static let liveCaptions = localized(english: "Live Captions", korean: "실시간 전사")
     static let listening = localized(english: "Listening", korean: "듣는 중")
@@ -86,6 +121,10 @@ enum AppText {
 
     static func languageSummary(source: String, target: String) -> String {
         localized(english: "\(source) to \(target)", korean: "\(source) → \(target)")
+    }
+
+    static func lineCount(_ count: Int) -> String {
+        localized(english: "\(count) lines", korean: "\(count)줄")
     }
 
     static func startFailed(_ message: String) -> String {

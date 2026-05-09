@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SidebarView: View {
     @Bindable var session: TranslationSessionStore
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         Form {
@@ -12,6 +13,7 @@ struct SidebarView: View {
                     Label(session.isRunning ? AppText.stop : AppText.start, systemImage: session.isRunning ? "stop.fill" : "play.fill")
                 }
                 .buttonStyle(.borderedProminent)
+                .controlSize(.large)
 
                 if session.isRunning {
                     Button {
@@ -22,6 +24,7 @@ struct SidebarView: View {
                             systemImage: session.isPaused ? "play.fill" : "pause.fill"
                         )
                     }
+                    .controlSize(.large)
                 }
 
                 Text(session.statusMessage)
@@ -72,6 +75,12 @@ struct SidebarView: View {
                 Text(AppText.transcriptLintDescription)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                Button {
+                    openWindow(id: AirTranslateWindowID.floatingCaptions)
+                } label: {
+                    Label(AppText.showFloatingCaptions, systemImage: "macwindow.on.rectangle")
+                }
             }
 
             Section(AppText.savedTranscripts) {
@@ -125,7 +134,7 @@ struct SidebarView: View {
                         Button(role: .destructive) {
                             session.deleteSelectedTranscript()
                         } label: {
-                            Image(systemName: "trash")
+                            Label(AppText.deleteSavedTranscript, systemImage: "trash")
                         }
                     }
                 }
