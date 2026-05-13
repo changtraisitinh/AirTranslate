@@ -2,7 +2,7 @@
 
 ## 1.2.0 - 2026-05-13
 
-Release focus: GPT realtime captions, multilingual documentation, and App Store release preparation.
+Release focus: GPT realtime captions, multilingual documentation, and Apache 2.0 open-source release preparation.
 
 ### Highlights
 
@@ -10,7 +10,7 @@ Release focus: GPT realtime captions, multilingual documentation, and App Store 
 - Realtime translation-only path with optional translated audio playback.
 - Floating captions in GPT mode show the current live caption unit instead of the accumulated transcript.
 - User-provided OpenAI API keys are stored in macOS Keychain and are not bundled with the app.
-- App Store release kit with sandbox entitlements, packaging script, screenshot assets, privacy notice, and App Store Connect draft metadata.
+- Open-source release kit with ZIP packaging script, screenshot assets, privacy notice, and version history.
 - English, Korean, Japanese, and Simplified Chinese README files.
 - Apache 2.0 source license and NOTICE attribution.
 

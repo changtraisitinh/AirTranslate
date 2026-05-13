@@ -1,14 +1,14 @@
 # Imagegen Prompt Set
 
-The final App Store screenshots use generated raster backgrounds plus local deterministic text/UI composition.
+The final release screenshots use generated raster backgrounds plus local deterministic text/UI composition.
 
 ## 01 Main Workspace Background
 
 Use case: productivity-visual
 
-Asset type: App Store screenshot background source for a macOS productivity app
+Asset type: Release screenshot background source for a macOS productivity app
 
-Primary request: Create a polished 16:10 landscape background image for a Mac App Store screenshot of a live transcription and translation app. No text.
+Primary request: Create a polished 16:10 landscape background image for a release screenshot of a live transcription and translation app. No text.
 
 Scene/backdrop: a refined modern macOS desktop workspace with a large softly lit monitor area, subtle audio-wave ambience, and space for a centered app window overlay.
 
@@ -28,7 +28,7 @@ Constraints: no readable text, no logos, no watermark, no fake app UI, no people
 
 Use case: productivity-visual
 
-Asset type: App Store screenshot background source for a macOS floating caption feature
+Asset type: Release screenshot background source for a macOS floating caption feature
 
 Primary request: Create a cinematic 16:10 landscape background showing a Mac video or online lecture context where floating captions would be useful. No text.
 
@@ -50,7 +50,7 @@ Constraints: no readable text, no logos, no watermark, no faces, no hands, no vi
 
 Use case: productivity-visual
 
-Asset type: App Store screenshot background source for saved transcript library feature
+Asset type: Release screenshot background source for saved transcript library feature
 
 Primary request: Create a polished 16:10 landscape background for a Mac app screenshot about locally saved transcripts. No text.
 
@@ -72,7 +72,7 @@ Constraints: no readable text, no logos, no watermark, no fake app UI, no people
 
 Use case: productivity-visual
 
-Asset type: App Store screenshot background source for privacy and settings feature
+Asset type: Release screenshot background source for privacy and settings feature
 
 Primary request: Create a clean 16:10 landscape background for a Mac app screenshot about privacy-first settings and local processing. No text.
 

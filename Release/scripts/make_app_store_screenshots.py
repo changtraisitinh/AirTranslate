@@ -10,7 +10,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 ROOT = Path(__file__).resolve().parents[2]
 ASSET_ROOT = ROOT / "Release" / "assets"
 BG_ROOT = ASSET_ROOT / "source-backgrounds"
-OUT_ROOT = ASSET_ROOT / "app-store-screenshots"
+OUT_ROOT = ASSET_ROOT / "screenshots"
 SIZE = (2880, 1800)
 
 

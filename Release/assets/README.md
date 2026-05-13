@@ -1,15 +1,15 @@
-# AirTranslate App Store Assets
+# AirTranslate Release Assets
 
-Generated with the built-in `image_gen` path, then composed into deterministic App Store screenshot PNGs with `Release/scripts/make_app_store_screenshots.py`.
+Generated with the built-in `image_gen` path, then composed into deterministic release screenshot PNGs with `Release/scripts/make_app_store_screenshots.py`.
 
-## Final Screenshot Upload Candidates
+## Final Screenshot Candidates
 
-All final screenshots are `2880 x 1800` PNG files, matching a Mac App Store 16:10 screenshot size.
+All final screenshots are `2880 x 1800` PNG files suitable for GitHub release notes, project documentation, and other public open-source release pages.
 
-- `app-store-screenshots/01-main-workspace-2880x1800.png`
-- `app-store-screenshots/02-floating-captions-2880x1800.png`
-- `app-store-screenshots/03-saved-transcripts-2880x1800.png`
-- `app-store-screenshots/04-privacy-settings-2880x1800.png`
+- `screenshots/01-main-workspace-2880x1800.png`
+- `screenshots/02-floating-captions-2880x1800.png`
+- `screenshots/03-saved-transcripts-2880x1800.png`
+- `screenshots/04-privacy-settings-2880x1800.png`
 
 ## Source Backgrounds
 
