@@ -7,6 +7,8 @@
 [![macOS 26+](https://img.shields.io/badge/macOS-26%2B-0A84FF?style=flat-square&logo=apple)](#环境要求)
 [![Swift 6.2+](https://img.shields.io/badge/Swift-6.2%2B-F05138?style=flat-square&logo=swift&logoColor=white)](#从源码构建)
 [![SwiftPM](https://img.shields.io/badge/SwiftPM-enabled-24292F?style=flat-square)](#项目结构)
+[![Latest Release](https://img.shields.io/github/v/release/himomohi/AirTranslate?style=flat-square&label=release)](https://github.com/himomohi/AirTranslate/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/himomohi/AirTranslate/total?style=flat-square&label=downloads)](https://github.com/himomohi/AirTranslate/releases/latest)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square)](LICENSE)
 
 **Languages:** [English](README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | 中文
@@ -75,6 +77,12 @@ AirTranslate 只请求捕获和转写流程需要的权限。
 由于 ScreenCaptureKit 的系统音频捕获路径需要屏幕录制权限，因此应用会请求该权限。AirTranslate 不会把屏幕画面保存为录制文件。
 
 更改 macOS 隐私权限后，请退出并重新启动应用，以便签名后的应用 bundle 获得新的授权状态。
+
+## 下载
+
+最新开源构建可在 [GitHub Releases](https://github.com/himomohi/AirTranslate/releases/latest) 下载。
+
+发布 ZIP 是面向开源分发的 ad-hoc 签名构建。首次启动时，macOS 可能要求你在“隐私与安全性”中批准运行。
 
 ## 环境要求
 

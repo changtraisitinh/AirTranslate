@@ -7,6 +7,8 @@ macOS용 실시간 시스템 오디오 기록 및 번역 앱.
 [![macOS 26+](https://img.shields.io/badge/macOS-26%2B-0A84FF?style=flat-square&logo=apple)](#요구-사항)
 [![Swift 6.2+](https://img.shields.io/badge/Swift-6.2%2B-F05138?style=flat-square&logo=swift&logoColor=white)](#소스에서-빌드)
 [![SwiftPM](https://img.shields.io/badge/SwiftPM-enabled-24292F?style=flat-square)](#프로젝트-구조)
+[![Latest Release](https://img.shields.io/github/v/release/himomohi/AirTranslate?style=flat-square&label=release)](https://github.com/himomohi/AirTranslate/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/himomohi/AirTranslate/total?style=flat-square&label=downloads)](https://github.com/himomohi/AirTranslate/releases/latest)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square)](LICENSE)
 
 **언어:** [English](README.md) | 한국어 | [日本語](README.ja.md) | [中文](README.zh-CN.md)
@@ -75,6 +77,12 @@ AirTranslate는 캡처와 전사 흐름에 필요한 권한만 요청합니다.
 ScreenCaptureKit의 시스템 오디오 캡처 경로 때문에 화면 기록 권한이 필요합니다. AirTranslate는 화면 프레임을 녹화 파일로 저장하지 않습니다.
 
 macOS 개인정보 보호 권한을 바꾼 뒤에는 앱을 종료하고 다시 실행해야 새 권한 상태가 안정적으로 반영됩니다.
+
+## 다운로드
+
+최신 오픈소스 빌드는 [GitHub Releases](https://github.com/himomohi/AirTranslate/releases/latest)에서 받을 수 있습니다.
+
+릴리즈 ZIP은 오픈소스 배포용 ad-hoc 서명 빌드입니다. 처음 실행할 때 macOS의 개인정보 보호 및 보안 설정에서 실행을 승인해야 할 수 있습니다.
 
 ## 요구 사항
 

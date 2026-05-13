@@ -7,6 +7,8 @@ Live system-audio transcription and translation for macOS.
 [![macOS 26+](https://img.shields.io/badge/macOS-26%2B-0A84FF?style=flat-square&logo=apple)](#requirements)
 [![Swift 6.2+](https://img.shields.io/badge/Swift-6.2%2B-F05138?style=flat-square&logo=swift&logoColor=white)](#build-from-source)
 [![SwiftPM](https://img.shields.io/badge/SwiftPM-enabled-24292F?style=flat-square)](#project-map)
+[![Latest Release](https://img.shields.io/github/v/release/himomohi/AirTranslate?style=flat-square&label=release)](https://github.com/himomohi/AirTranslate/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/himomohi/AirTranslate/total?style=flat-square&label=downloads)](https://github.com/himomohi/AirTranslate/releases/latest)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square)](LICENSE)
 
 **Languages:** English | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文](README.zh-CN.md)
@@ -75,6 +77,12 @@ AirTranslate asks for the permissions required by its capture and transcription 
 Screen Recording is required because ScreenCaptureKit provides the system-audio capture path. AirTranslate does not save screen frames as recordings.
 
 After changing macOS privacy permissions, quit and relaunch the app so the signed app bundle receives the new authorization state.
+
+## Download
+
+Download the latest open-source build from [GitHub Releases](https://github.com/himomohi/AirTranslate/releases/latest).
+
+The release ZIP is ad-hoc signed for open-source distribution. macOS may ask you to approve it in Privacy & Security before first launch.
 
 ## Requirements
 
