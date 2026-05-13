@@ -9,6 +9,8 @@ Live system-audio transcription and translation for macOS.
 [![SwiftPM](https://img.shields.io/badge/SwiftPM-enabled-24292F?style=flat-square)](#project-map)
 [![Latest Release](https://img.shields.io/github/v/release/himomohi/AirTranslate?style=flat-square&label=release)](https://github.com/himomohi/AirTranslate/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/himomohi/AirTranslate/total?style=flat-square&label=downloads)](https://github.com/himomohi/AirTranslate/releases/latest)
+[![Download ZIP](https://img.shields.io/badge/download-AirTranslate--1.2.0.zip-2EA44F?style=flat-square&logo=github)](https://github.com/himomohi/AirTranslate/releases/latest/download/AirTranslate-1.2.0.zip)
+[![Version History](https://img.shields.io/badge/version%20history-Release%2FVERSION--HISTORY.md-6E56CF?style=flat-square)](Release/VERSION-HISTORY.md)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square)](LICENSE)
 
 **Languages:** English | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文](README.zh-CN.md)
@@ -80,7 +82,10 @@ After changing macOS privacy permissions, quit and relaunch the app so the signe
 
 ## Download
 
-Download the latest open-source build from [GitHub Releases](https://github.com/himomohi/AirTranslate/releases/latest).
+Download the latest open-source build from [GitHub Releases](https://github.com/himomohi/AirTranslate/releases/latest), or download the ZIP directly:
+
+- [Download AirTranslate-1.2.0.zip](https://github.com/himomohi/AirTranslate/releases/latest/download/AirTranslate-1.2.0.zip)
+- [View version history](Release/VERSION-HISTORY.md)
 
 The release ZIP is ad-hoc signed for open-source distribution. macOS may ask you to approve it in Privacy & Security before first launch.
 

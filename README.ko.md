@@ -9,6 +9,8 @@ macOS용 실시간 시스템 오디오 기록 및 번역 앱.
 [![SwiftPM](https://img.shields.io/badge/SwiftPM-enabled-24292F?style=flat-square)](#프로젝트-구조)
 [![Latest Release](https://img.shields.io/github/v/release/himomohi/AirTranslate?style=flat-square&label=release)](https://github.com/himomohi/AirTranslate/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/himomohi/AirTranslate/total?style=flat-square&label=downloads)](https://github.com/himomohi/AirTranslate/releases/latest)
+[![Download ZIP](https://img.shields.io/badge/download-AirTranslate--1.2.0.zip-2EA44F?style=flat-square&logo=github)](https://github.com/himomohi/AirTranslate/releases/latest/download/AirTranslate-1.2.0.zip)
+[![Version History](https://img.shields.io/badge/version%20history-Release%2FVERSION--HISTORY.md-6E56CF?style=flat-square)](Release/VERSION-HISTORY.md)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square)](LICENSE)
 
 **언어:** [English](README.md) | 한국어 | [日本語](README.ja.md) | [中文](README.zh-CN.md)
@@ -80,7 +82,10 @@ macOS 개인정보 보호 권한을 바꾼 뒤에는 앱을 종료하고 다시 
 
 ## 다운로드
 
-최신 오픈소스 빌드는 [GitHub Releases](https://github.com/himomohi/AirTranslate/releases/latest)에서 받을 수 있습니다.
+최신 오픈소스 빌드는 [GitHub Releases](https://github.com/himomohi/AirTranslate/releases/latest)에서 받을 수 있고, ZIP을 바로 받을 수도 있습니다.
+
+- [AirTranslate-1.2.0.zip 다운로드](https://github.com/himomohi/AirTranslate/releases/latest/download/AirTranslate-1.2.0.zip)
+- [버전 히스토리 보기](Release/VERSION-HISTORY.md)
 
 릴리즈 ZIP은 오픈소스 배포용 ad-hoc 서명 빌드입니다. 처음 실행할 때 macOS의 개인정보 보호 및 보안 설정에서 실행을 승인해야 할 수 있습니다.
 
