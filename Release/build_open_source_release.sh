@@ -18,6 +18,7 @@ APP_RESOURCES="$APP_CONTENTS/Resources"
 APP_BINARY="$APP_MACOS/$APP_NAME"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
 ZIP_PATH="$PRODUCT_DIR/$APP_NAME-$VERSION-$BUILD_NUMBER.zip"
+STABLE_ZIP_PATH="$PRODUCT_DIR/$APP_NAME-$VERSION.zip"
 
 usage() {
   cat <<EOF
@@ -78,5 +79,7 @@ fi
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
 
 /usr/bin/ditto -c -k --norsrc --keepParent "$APP_BUNDLE" "$ZIP_PATH"
+/usr/bin/ditto -c -k --norsrc --keepParent "$APP_BUNDLE" "$STABLE_ZIP_PATH"
 echo "Built open-source release app: $APP_BUNDLE"
 echo "Built open-source release zip: $ZIP_PATH"
+echo "Built stable release zip: $STABLE_ZIP_PATH"

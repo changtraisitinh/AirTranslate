@@ -6,6 +6,18 @@ All notable changes to AirTranslate are documented in this file.
 
 No unreleased changes yet.
 
+## 1.2.1 - 2026-05-14
+
+### Changed
+
+- Apple mode now resets GPT transcription and translation model state when selected.
+- Apple and GPT mode switching now uses shared session helpers to keep visible mode and internal processing state aligned.
+
+### Fixed
+
+- Fixed Apple default mode translation staying inactive while live transcription continued.
+- Translation unavailable states now appear in the translation output instead of leaving the pane stuck on `Translating...`.
+
 ## 1.2.0 - 2026-05-13
 
 ### Added

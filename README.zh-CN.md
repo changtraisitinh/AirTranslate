@@ -9,7 +9,7 @@
 [![SwiftPM](https://img.shields.io/badge/SwiftPM-enabled-24292F?style=flat-square)](#项目结构)
 [![Latest Release](https://img.shields.io/github/v/release/himomohi/AirTranslate?style=flat-square&label=release)](https://github.com/himomohi/AirTranslate/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/himomohi/AirTranslate/total?style=flat-square&label=downloads)](https://github.com/himomohi/AirTranslate/releases/latest)
-[![Download ZIP](https://img.shields.io/badge/download-AirTranslate--1.2.0.zip-2EA44F?style=flat-square&logo=github)](https://github.com/himomohi/AirTranslate/releases/latest/download/AirTranslate-1.2.0.zip)
+[![Download ZIP](https://img.shields.io/badge/download-AirTranslate--1.2.1.zip-2EA44F?style=flat-square&logo=github)](https://github.com/himomohi/AirTranslate/releases/latest/download/AirTranslate-1.2.1.zip)
 [![Version History](https://img.shields.io/badge/version%20history-Release%2FVERSION--HISTORY.md-6E56CF?style=flat-square)](Release/VERSION-HISTORY.md)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square)](LICENSE)
 
@@ -84,7 +84,7 @@ AirTranslate 只请求捕获和转写流程需要的权限。
 
 最新开源构建可在 [GitHub Releases](https://github.com/himomohi/AirTranslate/releases/latest) 下载，也可以直接下载 ZIP。
 
-- [下载 AirTranslate-1.2.0.zip](https://github.com/himomohi/AirTranslate/releases/latest/download/AirTranslate-1.2.0.zip)
+- [下载 AirTranslate-1.2.1.zip](https://github.com/himomohi/AirTranslate/releases/latest/download/AirTranslate-1.2.1.zip)
 - [查看版本历史](Release/VERSION-HISTORY.md)
 
 发布 ZIP 是面向开源分发的 ad-hoc 签名构建。首次启动时，macOS 可能要求你在“隐私与安全性”中批准运行。

@@ -1,5 +1,17 @@
 # AirTranslate Version History
 
+## 1.2.1 - 2026-05-14
+
+### Changed
+
+- Apple mode now keeps the visible mode and internal translation state aligned.
+- GPT mode setup now uses the same session-level mode switching path as Apple mode.
+
+### Fixed
+
+- Fixed Apple default mode translation staying inactive while transcription continued.
+- Translation unavailable states now show a clear message in the translation output.
+
 ## 1.2.0 - 2026-05-13
 
 ### Added
