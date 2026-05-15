@@ -1,4 +1,6 @@
-![AirTranslate hero](docs/assets/airtranslate-readme-hero.png)
+<p align="center">
+  <video src="docs/assets/airtranslate-readme-demo.mp4" poster="docs/assets/airtranslate-readme-hero.png" controls autoplay muted loop playsinline width="100%"></video>
+</p>
 
 # AirTranslate
 
@@ -105,6 +107,8 @@ After changing macOS privacy permissions, quit and relaunch the app so the signe
 ## Download
 
 Download the latest open-source build from [GitHub Releases](https://github.com/himomohi/AirTranslate/releases/latest). The DMG is the easiest install path, and the ZIP remains available as the original lightweight option.
+
+AirTranslate remains fully open-source under the Apache-2.0 License. The DMG is provided only as a convenient macOS installer, while all source code, build scripts, release materials, LICENSE, and NOTICE files remain available in this repository.
 
 - [Download AirTranslate.dmg](https://github.com/himomohi/AirTranslate/releases/latest/download/AirTranslate.dmg)
 - [Download AirTranslate-1.2.1.zip](https://github.com/himomohi/AirTranslate/releases/latest/download/AirTranslate-1.2.1.zip)

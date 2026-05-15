@@ -1,4 +1,6 @@
-![AirTranslate hero](docs/assets/airtranslate-readme-hero.png)
+<p align="center">
+  <video src="docs/assets/airtranslate-readme-demo.mp4" poster="docs/assets/airtranslate-readme-hero.png" controls autoplay muted loop playsinline width="100%"></video>
+</p>
 
 # AirTranslate
 
@@ -105,6 +107,8 @@ macOS 개인정보 보호 권한을 바꾼 뒤에는 앱을 종료하고 다시 
 ## 다운로드
 
 최신 오픈소스 빌드는 [GitHub Releases](https://github.com/himomohi/AirTranslate/releases/latest)에서 받을 수 있고, ZIP을 바로 받을 수도 있습니다.
+
+AirTranslate는 Apache-2.0 라이선스의 오픈소스 프로젝트입니다. DMG 파일은 macOS 사용자가 더 쉽게 설치할 수 있도록 추가로 제공되는 설치 패키지이며, 소스코드 공개를 대체하는 것이 아닙니다. 소스코드, 빌드 스크립트, 릴리즈 자료, LICENSE, NOTICE 파일은 모두 이 저장소에 공개되어 있습니다.
 
 - [AirTranslate-1.2.1.zip 다운로드](https://github.com/himomohi/AirTranslate/releases/latest/download/AirTranslate-1.2.1.zip)
 - [버전 히스토리 보기](Release/VERSION-HISTORY.md)

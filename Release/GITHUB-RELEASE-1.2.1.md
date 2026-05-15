@@ -23,13 +23,17 @@ AirTranslate is an independent open-source project and is not affiliated with Ap
 
 ## Download
 
-For the easiest install path, download `AirTranslate.dmg`, open it, then drag `AirTranslate.app` to Applications.
+For most macOS users, download `AirTranslate.dmg`, open it, and drag `AirTranslate.app` to the Applications folder.
 
-The original ZIP install path is still available as `AirTranslate-1.2.1.zip`.
+For developers or users who prefer the archive format, `AirTranslate-1.2.1.zip` is also available.
 
-macOS may require the first launch to use Control-click or right-click, then **Open**, because these files are open-source ad-hoc signed builds, not notarized Developer ID distributions yet.
+AirTranslate remains fully open-source under the Apache-2.0 License. The DMG is only a convenient macOS installation package; it does not replace the source code distribution.
 
-Use `AirTranslate.dmg.sha256` if you want to verify the DMG checksum before opening it.
+Because this build is not Apple-notarized yet, macOS may show an "unidentified developer" warning on first launch. If that happens:
+
+Control-click / right-click `AirTranslate.app` -> Open -> Open
+
+You can verify the DMG checksum with `AirTranslate.dmg.sha256`.
 
 ## Privacy
 
