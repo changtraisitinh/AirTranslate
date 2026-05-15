@@ -4,16 +4,26 @@
 
 macOS向けのリアルタイム・システム音声文字起こし/翻訳アプリ。
 
-[![macOS 26+](https://img.shields.io/badge/macOS-26%2B-0A84FF?style=flat-square&logo=apple)](#必要環境)
-[![Swift 6.2+](https://img.shields.io/badge/Swift-6.2%2B-F05138?style=flat-square&logo=swift&logoColor=white)](#ソースからビルド)
-[![SwiftPM](https://img.shields.io/badge/SwiftPM-enabled-24292F?style=flat-square)](#プロジェクト構成)
-[![Latest Release](https://img.shields.io/github/v/release/himomohi/AirTranslate?style=flat-square&label=release)](https://github.com/himomohi/AirTranslate/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/himomohi/AirTranslate/total?style=flat-square&label=downloads)](https://github.com/himomohi/AirTranslate/releases/latest)
-[![Download ZIP](https://img.shields.io/badge/download-AirTranslate--1.2.1.zip-2EA44F?style=flat-square&logo=github)](https://github.com/himomohi/AirTranslate/releases/latest/download/AirTranslate-1.2.1.zip)
-[![Version History](https://img.shields.io/badge/version%20history-Release%2FVERSION--HISTORY.md-6E56CF?style=flat-square)](Release/VERSION-HISTORY.md)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square)](LICENSE)
+<p align="center">
+  <a href="https://github.com/himomohi/AirTranslate/releases/latest/download/AirTranslate.dmg"><img alt="Download AirTranslate.dmg" src="https://img.shields.io/badge/Download-AirTranslate.dmg-2EA44F?style=for-the-badge&logo=apple&logoColor=white"></a>
+  <a href="https://github.com/himomohi/AirTranslate/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/himomohi/AirTranslate?style=for-the-badge&label=Latest"></a>
+</p>
 
-**Languages:** [English](README.md) | [한국어](README.ko.md) | 日本語 | [中文](README.zh-CN.md)
+<p align="center">
+  <a href="#ダウンロード">ダウンロード</a> ·
+  <a href="#必要環境">必要環境</a> ·
+  <a href="#プライバシーとapiキー">プライバシー</a> ·
+  <a href="README.md">English</a> ·
+  <a href="README.ko.md">한국어</a> ·
+  日本語 ·
+  <a href="README.zh-CN.md">中文</a>
+</p>
+
+<p align="center">
+  <img alt="macOS 26+" src="https://img.shields.io/badge/macOS-26%2B-0A84FF?style=flat-square&logo=apple">
+  <img alt="Swift 6.2+" src="https://img.shields.io/badge/Swift-6.2%2B-F05138?style=flat-square&logo=swift&logoColor=white">
+  <a href="LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square"></a>
+</p>
 
 AirTranslateは、Macで再生されている音声をリアルタイムで文字起こしし、翻訳し、必要に応じてフローティング字幕として表示します。会議、講義、動画、インタビュー、配信など、外部マイク経由では扱いにくい音声をMacのシステムオーディオから直接処理するためのアプリです。
 
