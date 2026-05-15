@@ -4,17 +4,26 @@
 
 Live system-audio transcription and translation for macOS.
 
-[![macOS 26+](https://img.shields.io/badge/macOS-26%2B-0A84FF?style=flat-square&logo=apple)](#requirements)
-[![Swift 6.2+](https://img.shields.io/badge/Swift-6.2%2B-F05138?style=flat-square&logo=swift&logoColor=white)](#build-from-source)
-[![SwiftPM](https://img.shields.io/badge/SwiftPM-enabled-24292F?style=flat-square)](#project-map)
-[![Latest Release](https://img.shields.io/github/v/release/himomohi/AirTranslate?style=flat-square&label=release)](https://github.com/himomohi/AirTranslate/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/himomohi/AirTranslate/total?style=flat-square&label=downloads)](https://github.com/himomohi/AirTranslate/releases/latest)
-[![Download DMG](https://img.shields.io/badge/download-AirTranslate.dmg-0A84FF?style=flat-square&logo=apple)](https://github.com/himomohi/AirTranslate/releases/latest/download/AirTranslate.dmg)
-[![Download ZIP](https://img.shields.io/badge/download-AirTranslate--1.2.1.zip-2EA44F?style=flat-square&logo=github)](https://github.com/himomohi/AirTranslate/releases/latest/download/AirTranslate-1.2.1.zip)
-[![Version History](https://img.shields.io/badge/version%20history-Release%2FVERSION--HISTORY.md-6E56CF?style=flat-square)](Release/VERSION-HISTORY.md)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square)](LICENSE)
+<p align="center">
+  <a href="https://github.com/himomohi/AirTranslate/releases/latest/download/AirTranslate.dmg"><img alt="Download AirTranslate.dmg" src="https://img.shields.io/badge/Download-AirTranslate.dmg-2EA44F?style=for-the-badge&logo=apple&logoColor=white"></a>
+  <a href="https://github.com/himomohi/AirTranslate/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/himomohi/AirTranslate?style=for-the-badge&label=Latest"></a>
+</p>
 
-**Languages:** English | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文](README.zh-CN.md)
+<p align="center">
+  <a href="#download">Download</a> ·
+  <a href="#requirements">Requirements</a> ·
+  <a href="#privacy-and-api-keys">Privacy</a> ·
+  English ·
+  <a href="README.ko.md">한국어</a> ·
+  <a href="README.ja.md">日本語</a> ·
+  <a href="README.zh-CN.md">中文</a>
+</p>
+
+<p align="center">
+  <img alt="macOS 26+" src="https://img.shields.io/badge/macOS-26%2B-0A84FF?style=flat-square&logo=apple">
+  <img alt="Swift 6.2+" src="https://img.shields.io/badge/Swift-6.2%2B-F05138?style=flat-square&logo=swift&logoColor=white">
+  <a href="LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square"></a>
+</p>
 
 AirTranslate captures audio playing on your Mac, turns it into a live transcript, translates it in real time, and can show the result as a floating caption overlay. It is designed for meetings, lectures, videos, interviews, and streams where routing audio through a microphone is awkward or lossy.
 
