@@ -32,12 +32,26 @@ This creates an ad-hoc signed app bundle and ZIP for local inspection or attachi
 ./Release/build_open_source_release.sh
 ```
 
+To build a DMG for the pre-notarization GitHub Release install path:
+
+```bash
+./Release/build_open_source_release.sh dmg
+```
+
+To build both ZIP and DMG artifacts:
+
+```bash
+./Release/build_open_source_release.sh all
+```
+
 Outputs:
 
 ```text
 Release/product/AirTranslate.app
 Release/product/AirTranslate-<version>-<build>.zip
 Release/product/AirTranslate-<version>.zip
+Release/product/AirTranslate.dmg
+Release/product/AirTranslate.dmg.sha256
 ```
 
 `Release/product/` is generated output and should stay out of commits.
@@ -61,6 +75,8 @@ git diff -- . ':(exclude).build/**' ':(exclude)Release/product/**' | \
 - Confirm `swift build` passes.
 - Confirm `swift test` passes.
 - Confirm the release ZIP contains `LICENSE` and `NOTICE`.
+- Confirm the release DMG opens and contains `AirTranslate.app` plus the Applications shortcut.
+- Confirm `AirTranslate.dmg.sha256` matches the uploaded DMG.
 - Confirm the release ZIP does not contain API keys, tokens, private keys, provisioning profiles, or `.env` files.
 - Confirm OpenAI GPT mode still requires a user-provided key at runtime and does not bundle one.
 - Confirm `Release/product/` remains ignored.

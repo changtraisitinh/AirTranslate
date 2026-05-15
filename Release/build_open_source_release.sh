@@ -19,12 +19,17 @@ APP_BINARY="$APP_MACOS/$APP_NAME"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
 ZIP_PATH="$PRODUCT_DIR/$APP_NAME-$VERSION-$BUILD_NUMBER.zip"
 STABLE_ZIP_PATH="$PRODUCT_DIR/$APP_NAME-$VERSION.zip"
+DMG_STAGING_DIR="$BUILD_DIR/dmg"
+DMG_PATH="$PRODUCT_DIR/$APP_NAME.dmg"
+DMG_SHA256_PATH="$PRODUCT_DIR/$APP_NAME.dmg.sha256"
 
 usage() {
   cat <<EOF
-usage: $0 [zip]
+usage: $0 [zip|dmg|all]
 
 zip  Build an Apache 2.0 open-source release app bundle and ZIP.
+dmg  Build an Apache 2.0 open-source release app bundle and DMG.
+all  Build both ZIP and DMG release artifacts.
 
 Optional:
   BUNDLE_ID, VERSION, BUILD_NUMBER, MIN_SYSTEM_VERSION
@@ -32,7 +37,7 @@ EOF
 }
 
 case "$MODE" in
-  zip)
+  zip|dmg|all)
     ;;
   --help|-h|help)
     usage
@@ -78,8 +83,31 @@ fi
 /usr/bin/codesign "${CODESIGN_ARGS[@]}" "$APP_BUNDLE"
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
 
-/usr/bin/ditto -c -k --norsrc --keepParent "$APP_BUNDLE" "$ZIP_PATH"
-/usr/bin/ditto -c -k --norsrc --keepParent "$APP_BUNDLE" "$STABLE_ZIP_PATH"
+if [[ "$MODE" == "zip" || "$MODE" == "all" ]]; then
+  /usr/bin/ditto -c -k --norsrc --keepParent "$APP_BUNDLE" "$ZIP_PATH"
+  /usr/bin/ditto -c -k --norsrc --keepParent "$APP_BUNDLE" "$STABLE_ZIP_PATH"
+fi
+
+if [[ "$MODE" == "dmg" || "$MODE" == "all" ]]; then
+  rm -rf "$DMG_STAGING_DIR"
+  mkdir -p "$DMG_STAGING_DIR"
+  /usr/bin/ditto "$APP_BUNDLE" "$DMG_STAGING_DIR/$APP_NAME.app"
+  ln -s /Applications "$DMG_STAGING_DIR/Applications"
+  /usr/bin/hdiutil create \
+    -volname "$APP_NAME $VERSION" \
+    -srcfolder "$DMG_STAGING_DIR" \
+    -ov \
+    -format UDZO \
+    "$DMG_PATH"
+  (cd "$PRODUCT_DIR" && /usr/bin/shasum -a 256 "$(basename "$DMG_PATH")" > "$(basename "$DMG_SHA256_PATH")")
+fi
+
 echo "Built open-source release app: $APP_BUNDLE"
-echo "Built open-source release zip: $ZIP_PATH"
-echo "Built stable release zip: $STABLE_ZIP_PATH"
+if [[ "$MODE" == "zip" || "$MODE" == "all" ]]; then
+  echo "Built open-source release zip: $ZIP_PATH"
+  echo "Built stable release zip: $STABLE_ZIP_PATH"
+fi
+if [[ "$MODE" == "dmg" || "$MODE" == "all" ]]; then
+  echo "Built open-source release dmg: $DMG_PATH"
+  echo "Built open-source release dmg checksum: $DMG_SHA256_PATH"
+fi

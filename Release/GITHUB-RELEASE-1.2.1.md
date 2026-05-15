@@ -23,9 +23,13 @@ AirTranslate is an independent open-source project and is not affiliated with Ap
 
 ## Download
 
-Download `AirTranslate-1.2.1.zip` from this release, unzip it, then open `AirTranslate.app`.
+For the easiest install path, download `AirTranslate.dmg`, open it, then drag `AirTranslate.app` to Applications.
 
-macOS may require you to approve the app in Privacy & Security because this ZIP is an open-source ad-hoc signed build, not a notarized distribution.
+The original ZIP install path is still available as `AirTranslate-1.2.1.zip`.
+
+macOS may require the first launch to use Control-click or right-click, then **Open**, because these files are open-source ad-hoc signed builds, not notarized Developer ID distributions yet.
+
+Use `AirTranslate.dmg.sha256` if you want to verify the DMG checksum before opening it.
 
 ## Privacy
 
