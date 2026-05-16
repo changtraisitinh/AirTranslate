@@ -175,8 +175,12 @@ struct SidebarView: View {
                     systemImage: "sparkles",
                     isOn: $session.isAppleSourceAutoDetectionEnabled
                 )
-                .disabled(session.isRunning)
-                .help(AppText.appleAutoLanguageModeDescription)
+                .disabled(session.isRunning || !session.isAppleSourceAutoDetectionAvailable)
+                .help(
+                    session.isAppleSourceAutoDetectionAvailable
+                        ? AppText.appleAutoLanguageModeDescription
+                        : AppText.appleAutoLanguageModeUnavailableDescription
+                )
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -1100,7 +1104,7 @@ private struct CompactAutoLanguagePicker: View {
             .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .frame(width: 100)
-        .help(AppText.appleAutoLanguageModeDescription)
+        .help(AppText.appleAutoLanguageModeUnavailableDescription)
         .accessibilityLabel(AppText.autoDetectInput)
     }
 }

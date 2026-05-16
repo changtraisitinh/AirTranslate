@@ -84,6 +84,7 @@ final class TranslationSessionStore {
     private static let maximumFloatingCaptionDwell = 3.6
     private static let appleAutoDetectionMinimumConfidence = 0.35
     private static let appleAutoDetectionLanguageSwitchMinimumConfidence = 0.72
+    private static let isAppleSourceAutoDetectionTemporarilyDisabled = true
 
     var isRunning = false
     var isPaused = false
@@ -543,9 +544,14 @@ final class TranslationSessionStore {
     }
 
     var isUsingAppleSourceAutoDetection: Bool {
-        isAppleSourceAutoDetectionEnabled
+        isAppleSourceAutoDetectionAvailable
+            && isAppleSourceAutoDetectionEnabled
             && !openAITranscriptionModel.isEnabled
             && !openAITranslationModel.isEnabled
+    }
+
+    var isAppleSourceAutoDetectionAvailable: Bool {
+        !Self.isAppleSourceAutoDetectionTemporarilyDisabled
     }
 
     func usePreferredLanguageForOpenAIOutput() {
@@ -986,7 +992,8 @@ final class TranslationSessionStore {
         if let deviceID = defaults.string(forKey: SettingsKey.selectedMicrophoneInputDeviceID) {
             selectedMicrophoneInputDeviceID = deviceID
         }
-        isAppleSourceAutoDetectionEnabled = defaults.bool(forKey: SettingsKey.isAppleSourceAutoDetectionEnabled)
+        isAppleSourceAutoDetectionEnabled = isAppleSourceAutoDetectionAvailable
+            && defaults.bool(forKey: SettingsKey.isAppleSourceAutoDetectionEnabled)
         refreshMicrophoneInputDevices()
     }
 
