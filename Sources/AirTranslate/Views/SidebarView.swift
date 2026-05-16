@@ -129,7 +129,7 @@ struct SidebarView: View {
     private var languageControls: some View {
         if usesOpenAIAutoLanguageFlow {
             VStack(alignment: .leading, spacing: 6) {
-                OpenAIAutoLanguageRow()
+                AutoLanguageRow(helpText: AppText.openAILanguageModeDescription)
                 PreferredLanguageRow(
                     selection: $session.targetLanguage,
                     isDisabled: session.isRunning
@@ -144,24 +144,39 @@ struct SidebarView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         } else {
-            HStack(spacing: 6) {
-                CompactLanguagePicker(title: AppText.from, selection: $session.sourceLanguage)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    if session.isAppleSourceAutoDetectionEnabled {
+                        CompactAutoLanguagePicker(title: AppText.from)
+                    } else {
+                        CompactLanguagePicker(title: AppText.from, selection: $session.sourceLanguage)
+                    }
 
-                Button {
-                    swapLanguages()
-                } label: {
-                    Image(systemName: "arrow.left.arrow.right")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.accentColor)
-                        .frame(width: 24, height: 24)
-                        .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    Button {
+                        swapLanguages()
+                    } label: {
+                        Image(systemName: "arrow.left.arrow.right")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Color.accentColor)
+                            .frame(width: 24, height: 24)
+                            .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(session.isRunning || session.isAppleSourceAutoDetectionEnabled)
+                    .help(AppText.swapLanguages)
+                    .accessibilityLabel(AppText.swapLanguages)
+
+                    CompactLanguagePicker(title: AppText.to, selection: $session.targetLanguage)
                 }
-                .buttonStyle(.plain)
-                .disabled(session.isRunning)
-                .help(AppText.swapLanguages)
-                .accessibilityLabel(AppText.swapLanguages)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-                CompactLanguagePicker(title: AppText.to, selection: $session.targetLanguage)
+                CompactToggleRow(
+                    title: AppText.autoDetectInput,
+                    systemImage: "sparkles",
+                    isOn: $session.isAppleSourceAutoDetectionEnabled
+                )
+                .disabled(session.isRunning)
+                .help(AppText.appleAutoLanguageModeDescription)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -509,7 +524,9 @@ private struct ConfigurationSheetView: View {
     }
 }
 
-private struct OpenAIAutoLanguageRow: View {
+private struct AutoLanguageRow: View {
+    let helpText: String
+
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "sparkles")
@@ -536,7 +553,7 @@ private struct OpenAIAutoLanguageRow: View {
         .padding(.vertical, 7)
         .frame(maxWidth: .infinity, minHeight: 38, alignment: .leading)
         .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .help(AppText.openAILanguageModeDescription)
+        .help(helpText)
         .accessibilityLabel(AppText.autoDetectInput)
     }
 }
@@ -1054,6 +1071,37 @@ private struct CompactLanguagePicker: View {
             .accessibilityValue(selection.localizedTitle)
         }
         .frame(width: 100)
+    }
+}
+
+private struct CompactAutoLanguagePicker: View {
+    let title: String
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 24, alignment: .trailing)
+                .lineLimit(1)
+
+            HStack(spacing: 4) {
+                Text(AppText.autoDetectShort)
+                    .font(.callout.weight(.semibold))
+                    .lineLimit(1)
+
+                Image(systemName: "sparkles")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.accentColor)
+            }
+            .padding(.horizontal, 9)
+            .padding(.vertical, 7)
+            .frame(width: 72)
+            .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .frame(width: 100)
+        .help(AppText.appleAutoLanguageModeDescription)
+        .accessibilityLabel(AppText.autoDetectInput)
     }
 }
 

@@ -20,6 +20,7 @@ private enum SettingsKey {
     static let sessionDurationMode = "sessionDurationMode"
     static let audioInputSource = "audioInputSource"
     static let selectedMicrophoneInputDeviceID = "selectedMicrophoneInputDeviceID"
+    static let isAppleSourceAutoDetectionEnabled = "isAppleSourceAutoDetectionEnabled"
 }
 
 private struct TranslationRequest {
@@ -49,6 +50,8 @@ final class TranslationSessionStore {
     private static let floatingCaptionImmediateExtensionCharacterLimit = 28
     private static let minimumFloatingCaptionDwell = 1.4
     private static let maximumFloatingCaptionDwell = 3.6
+    private static let appleAutoDetectionMinimumConfidence = 0.35
+    private static let appleAutoDetectionLanguageSwitchMinimumConfidence = 0.72
 
     var isRunning = false
     var isPaused = false
@@ -135,6 +138,14 @@ final class TranslationSessionStore {
     var sessionDurationMode = SessionDurationMode.standard {
         didSet { persistSelectedSettings() }
     }
+    var isAppleSourceAutoDetectionEnabled = false {
+        didSet {
+            persistSelectedSettings()
+            resetTranslationCache()
+            resetDubbingProgress()
+            refreshModelAvailability()
+        }
+    }
     var audioInputSource = AudioInputSource.systemAudio {
         didSet { persistSelectedSettings() }
     }
@@ -183,6 +194,7 @@ final class TranslationSessionStore {
     private var translationBurstStartedAt = Date.distantPast
     private var committedSourceText = ""
     private var currentPartialText = ""
+    private var currentPartialLanguage: LanguageOption?
     private var pendingParagraphBreakBeforePartial = false
     private var floatingCommittedSourceText = ""
     private var floatingCurrentPartialText = ""
@@ -190,11 +202,13 @@ final class TranslationSessionStore {
     private var floatingPresentedSourceText = ""
     private var floatingQueuedSourceText = ""
     private var floatingPresentedAt = Date.distantPast
+    private var appleAutoDetectionPreferredLanguage: LanguageOption?
     private var floatingDisplayTranslationText = ""
     private var floatingDisplayTranslationSourceText = ""
     private var floatingQueuedTranslationText = ""
     private var floatingQueuedTranslationSourceText = ""
     private var floatingPresentationTask: Task<Void, Never>?
+    private var sourceLanguageByLineID: [UUID: LanguageOption] = [:]
     private var pendingTranslationSourceText = ""
     private var translatedSegmentsBySource: [String: String] = [:]
     private var translationCacheKeyOrder: [String] = []
@@ -448,7 +462,16 @@ final class TranslationSessionStore {
         if isUsingOpenAIRealtimeTranslation {
             return AppText.openAILanguageSummary(target: targetLanguage.localizedTitle)
         }
+        if isUsingAppleSourceAutoDetection {
+            return AppText.openAILanguageSummary(target: targetLanguage.localizedTitle)
+        }
         return AppText.languageSummary(source: sourceLanguage.localizedTitle, target: targetLanguage.localizedTitle)
+    }
+
+    var isUsingAppleSourceAutoDetection: Bool {
+        isAppleSourceAutoDetectionEnabled
+            && !openAITranscriptionModel.isEnabled
+            && !openAITranslationModel.isEnabled
     }
 
     func usePreferredLanguageForOpenAIOutput() {
@@ -692,8 +715,27 @@ final class TranslationSessionStore {
         } else if openAITranscriptionModel.isEnabled {
             try await openAITranscriber.start(language: sourceLanguage, model: openAITranscriptionModel)
         } else {
-            try await transcriber.start(languages: [sourceLanguage])
+            try await transcriber.start(languages: await appleSpeechLanguagesForCurrentMode())
         }
+    }
+
+    private func appleSpeechLanguagesForCurrentMode() async -> [LanguageOption] {
+        guard isUsingAppleSourceAutoDetection else { return [sourceLanguage] }
+
+        let candidates = prioritizedAutoDetectionLanguages()
+        let installedCandidates = await LiveSpeechTranscriber.installedSupportedLanguages(from: candidates)
+        let selectedCandidates = installedCandidates.isEmpty
+            ? [candidates.first ?? sourceLanguage]
+            : installedCandidates
+        appleAutoDetectionPreferredLanguage = selectedCandidates.first
+        return selectedCandidates
+    }
+
+    func prioritizedAutoDetectionLanguages() -> [LanguageOption] {
+        LanguageOption.prioritizedAutoDetectionCandidates(
+            sourceLanguage: sourceLanguage,
+            targetLanguage: targetLanguage
+        )
     }
 
     private func stopCaptioners() {
@@ -720,10 +762,13 @@ final class TranslationSessionStore {
         captionPresentationTask = nil
         committedSourceText = ""
         currentPartialText = ""
+        currentPartialLanguage = nil
+        appleAutoDetectionPreferredLanguage = nil
         pendingParagraphBreakBeforePartial = false
         floatingPresentationTask?.cancel()
         floatingPresentationTask = nil
         if clearsVisibleLines {
+            sourceLanguageByLineID.removeAll()
             floatingCommittedSourceText = ""
             floatingCurrentPartialText = ""
             pendingFloatingParagraphBreakBeforePartial = false
@@ -866,6 +911,7 @@ final class TranslationSessionStore {
         if let deviceID = defaults.string(forKey: SettingsKey.selectedMicrophoneInputDeviceID) {
             selectedMicrophoneInputDeviceID = deviceID
         }
+        isAppleSourceAutoDetectionEnabled = defaults.bool(forKey: SettingsKey.isAppleSourceAutoDetectionEnabled)
         refreshMicrophoneInputDevices()
     }
 
@@ -888,6 +934,7 @@ final class TranslationSessionStore {
         defaults.set(sessionDurationMode.id, forKey: SettingsKey.sessionDurationMode)
         defaults.set(audioInputSource.id, forKey: SettingsKey.audioInputSource)
         defaults.set(selectedMicrophoneInputDeviceID, forKey: SettingsKey.selectedMicrophoneInputDeviceID)
+        defaults.set(isAppleSourceAutoDetectionEnabled, forKey: SettingsKey.isAppleSourceAutoDetectionEnabled)
     }
 
     private func stopCapture() async {
@@ -1191,20 +1238,28 @@ final class TranslationSessionStore {
 
     private func appendCaption(
         sourceText: String,
-        recognizedLanguage _: LanguageOption,
-        confidence _: Double,
+        recognizedLanguage: LanguageOption,
+        confidence: Double,
         isFinal: Bool
     ) async {
         guard isRunning, !isPaused else { return }
         guard sourceText != lastRecognizedText || isFinal != lastRecognizedWasFinal else { return }
-        let direction = translationDirection()
 
         let now = Date()
         let hadLongSilence = now.timeIntervalSince(lastRecognitionAt) > paragraphBreakSilenceInterval
+        guard shouldAcceptRecognizedLanguage(
+            recognizedLanguage: recognizedLanguage,
+            confidence: confidence,
+            hadLongSilence: hadLongSilence
+        ) else {
+            return
+        }
+        let direction = translationDirection(recognizedLanguage: recognizedLanguage)
 
         let updatedSourceText = accumulatedTranscript(
             incoming: sourceText,
-            hadLongSilence: hadLongSilence
+            hadLongSilence: hadLongSilence,
+            language: direction.source
         )
         guard !updatedSourceText.isEmpty else { return }
 
@@ -1216,7 +1271,14 @@ final class TranslationSessionStore {
         if let currentLineID,
            let index = lines.firstIndex(where: { $0.id == currentLineID }) {
             let existingLine = lines[index]
-            guard updatedSourceText != existingLine.sourceText else { return }
+            let sourceLanguageChanged = sourceLanguageByLineID[existingLine.id] != direction.source
+            sourceLanguageByLineID[existingLine.id] = direction.source
+            guard updatedSourceText != existingLine.sourceText || sourceLanguageChanged else { return }
+            if sourceLanguageChanged, updatedSourceText == existingLine.sourceText {
+                pendingTranslationSourceText = ""
+                requestTranslation(for: existingLine, source: direction.source, target: direction.target)
+                return
+            }
 
             if shouldPresentCaptionUpdate(sourceText: updatedSourceText, isFinal: isFinal) {
                 clearPendingCaptionPresentation()
@@ -1247,6 +1309,7 @@ final class TranslationSessionStore {
                 usesLongSessionDisplay: usesLongSessionMode
             )
             currentLineID = line.id
+            sourceLanguageByLineID[line.id] = direction.source
             lines.append(line)
             lastCaptionPresentationUpdateAt = Date()
             stageTranscriptForSave(line.sourceText)
@@ -1265,6 +1328,25 @@ final class TranslationSessionStore {
             ? Self.largeTranscriptPresentationInterval / 2
             : Self.largeTranscriptPresentationInterval
         return elapsed >= interval
+    }
+
+    private func shouldAcceptRecognizedLanguage(
+        recognizedLanguage: LanguageOption,
+        confidence: Double,
+        hadLongSilence: Bool
+    ) -> Bool {
+        guard isUsingAppleSourceAutoDetection else { return true }
+        guard confidence >= Self.appleAutoDetectionMinimumConfidence else { return false }
+        if currentPartialLanguage == nil,
+           let appleAutoDetectionPreferredLanguage,
+           appleAutoDetectionPreferredLanguage != recognizedLanguage {
+            return confidence >= Self.appleAutoDetectionLanguageSwitchMinimumConfidence
+        }
+        guard let currentPartialLanguage else { return true }
+        guard currentPartialLanguage != recognizedLanguage else { return true }
+
+        return hadLongSilence
+            || confidence >= Self.appleAutoDetectionLanguageSwitchMinimumConfidence
     }
 
     private func scheduleCaptionPresentation(
@@ -1341,7 +1423,11 @@ final class TranslationSessionStore {
         requestTranslation(for: line, source: source, target: target)
     }
 
-    private func accumulatedTranscript(incoming: String, hadLongSilence: Bool) -> String {
+    private func accumulatedTranscript(
+        incoming: String,
+        hadLongSilence: Bool,
+        language: LanguageOption
+    ) -> String {
         let trimmedIncoming = incoming.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedIncoming.isEmpty else { return visibleTranscript() }
 
@@ -1354,13 +1440,25 @@ final class TranslationSessionStore {
         let incomingPartial = uncommittedIncomingText(
             from: trimmedIncoming,
             allowsCommittedRevision: !hadLongSilence,
-            allowsCommittedReplay: !hadLongSilence
+            allowsCommittedReplay: !hadLongSilence,
+            language: language
         )
         guard !incomingPartial.isEmpty else { return visibleTranscript() }
 
         if currentPartialText.isEmpty {
             currentPartialText = incomingPartial
+            currentPartialLanguage = language
             setFloatingCurrentPartialText(incomingPartial)
+            return visibleTranscript()
+        }
+
+        if currentPartialLanguage != language {
+            commitCurrentPartial()
+            pendingParagraphBreakBeforePartial = hadLongSilence && !committedSourceText.isEmpty
+            pendingFloatingParagraphBreakBeforePartial = hadLongSilence && !floatingCommittedSourceText.isEmpty
+            currentPartialText = incomingPartial
+            currentPartialLanguage = language
+            setFloatingCurrentPartialText(currentPartialText)
             return visibleTranscript()
         }
 
@@ -1376,8 +1474,10 @@ final class TranslationSessionStore {
         currentPartialText = uncommittedIncomingText(
             from: trimmedIncoming,
             allowsCommittedRevision: true,
-            allowsCommittedReplay: true
+            allowsCommittedReplay: true,
+            language: language
         )
+        currentPartialLanguage = language
         setFloatingCurrentPartialText(currentPartialText)
         return visibleTranscript()
     }
@@ -1385,10 +1485,11 @@ final class TranslationSessionStore {
     private func uncommittedIncomingText(
         from incoming: String,
         allowsCommittedRevision: Bool,
-        allowsCommittedReplay: Bool
+        allowsCommittedReplay: Bool,
+        language: LanguageOption
     ) -> String {
         if allowsCommittedReplay,
-           let replayTail = incomingTailAfterRecentCommittedReplay(incoming) {
+           let replayTail = incomingTailAfterRecentCommittedReplay(incoming, language: language) {
             syncFloatingCommittedSourceTextToCommittedSourceText()
             return replayTail
         }
@@ -1399,7 +1500,7 @@ final class TranslationSessionStore {
         }
 
         if allowsCommittedRevision,
-           replaceCommittedUnitsIfRevision(with: incoming, allowsBackfill: true) {
+           replaceCommittedUnitsIfRevision(with: incoming, language: language, allowsBackfill: true) {
             syncFloatingCommittedSourceTextToCommittedSourceText()
             return ""
         }
@@ -1414,11 +1515,11 @@ final class TranslationSessionStore {
         return incoming
     }
 
-    private func incomingTailAfterRecentCommittedReplay(_ incoming: String) -> String? {
+    private func incomingTailAfterRecentCommittedReplay(_ incoming: String, language: LanguageOption) -> String? {
         guard let replay = TranscriptTextProcessor.incomingTailAfterRecentCommittedReplay(
             incoming,
             committedText: committedSourceText,
-            languageID: sourceLanguage.id
+            languageID: language.id
         ) else {
             return nil
         }
@@ -1454,9 +1555,10 @@ final class TranslationSessionStore {
     }
 
     private func commitCurrentPartial() {
+        let language = currentPartialLanguage ?? sourceLanguage
         let partial = isUsingOpenAIRealtime
             ? currentPartialText.trimmingCharacters(in: .whitespacesAndNewlines)
-            : organizeTranscript(currentPartialText, language: sourceLanguage)
+            : organizeTranscript(currentPartialText, language: language)
         guard !partial.isEmpty else { return }
 
         var didAppendCommittedPartial = false
@@ -1464,7 +1566,7 @@ final class TranslationSessionStore {
         if committedSourceText.isEmpty {
             committedSourceText = partial
             didAppendCommittedPartial = true
-        } else if replaceCommittedUnitsIfRevision(with: partial, allowsBackfill: false) {
+        } else if replaceCommittedUnitsIfRevision(with: partial, language: language, allowsBackfill: false) {
             // The speech recognizer can resend the last phrase with better wording after
             // cleanup. Treat that as a replacement, not a new line.
             didReplaceCommittedPartial = true
@@ -1475,6 +1577,7 @@ final class TranslationSessionStore {
         }
         pendingParagraphBreakBeforePartial = false
         currentPartialText = ""
+        currentPartialLanguage = nil
 
         if didAppendCommittedPartial {
             commitFloatingCurrentPartial()
@@ -1663,11 +1766,15 @@ final class TranslationSessionStore {
         }
     }
 
-    private func replaceCommittedUnitsIfRevision(with text: String, allowsBackfill: Bool) -> Bool {
+    private func replaceCommittedUnitsIfRevision(
+        with text: String,
+        language: LanguageOption,
+        allowsBackfill: Bool
+    ) -> Bool {
         guard let updatedText = TranscriptTextProcessor.committedTextByReplacingRevision(
             with: text,
             committedText: committedSourceText,
-            languageID: sourceLanguage.id,
+            languageID: language.id,
             allowsBackfill: allowsBackfill
         ) else {
             return false
@@ -1783,6 +1890,7 @@ final class TranslationSessionStore {
 
         let line = lines[index]
         let sourceText = sourceTextOverride ?? line.sourceText
+        let sourceLanguage = sourceLanguageByLineID[line.id] ?? self.sourceLanguage
         let organizedSourceText = organizeTranscript(
             sourceText,
             language: sourceLanguage,
@@ -1819,6 +1927,7 @@ final class TranslationSessionStore {
 
         // Keep floating captions stable while cleanup rewrites the saved transcript.
         let updatedLine = lines[index]
+        sourceLanguageByLineID[updatedLine.id] = sourceLanguage
         stageTranscriptForSave(updatedLine.sourceText)
         if updatedLine.translatedSourceText != updatedLine.sourceText {
             requestTranslation(for: updatedLine, source: sourceLanguage, target: targetLanguage)
@@ -2372,8 +2481,8 @@ final class TranslationSessionStore {
             || isWholeTextPrefix(normalizedSourceText, of: normalizedOrganizedDisplaySourceText)
     }
 
-    private func translationDirection() -> (source: LanguageOption, target: LanguageOption) {
-        (sourceLanguage, targetLanguage)
+    private func translationDirection(recognizedLanguage: LanguageOption) -> (source: LanguageOption, target: LanguageOption) {
+        (isUsingAppleSourceAutoDetection ? recognizedLanguage : sourceLanguage, targetLanguage)
     }
 
     private func speak(_ text: String) {

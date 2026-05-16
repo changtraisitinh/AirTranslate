@@ -232,6 +232,12 @@ enum AppText {
         japanese: "OpenAIが入力言語を自動検出し、優先言語へ翻訳します。",
         chineseSimplified: "OpenAI 会自动检测输入语言并翻译为首选语言。"
     )
+    static let appleAutoLanguageModeDescription = localized(
+        english: "Apple Speech listens with installed supported language models and translates from the detected source language.",
+        korean: "Apple Speech가 설치된 지원 언어 모델로 듣고 감지된 원문 언어에서 번역합니다.",
+        japanese: "Apple Speechがインストール済みの対応言語モデルで聞き取り、検出した原文言語から翻訳します。",
+        chineseSimplified: "Apple Speech 会使用已安装的受支持语言模型收听，并从检测到的原文语言翻译。"
+    )
     static let translatedVoiceOutput = localized(
         english: "GPT translated voice",
         korean: "GPT 번역 음성",

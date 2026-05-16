@@ -22,6 +22,15 @@ struct LanguageOption: Identifiable, Hashable, Sendable {
         .init(id: "de-DE", title: "German", locale: Locale(identifier: "de-DE"))
     ]
 
+    static func prioritizedAutoDetectionCandidates(
+        sourceLanguage _: LanguageOption,
+        targetLanguage: LanguageOption
+    ) -> [LanguageOption] {
+        LanguageOption.supported.filter { language in
+            language != targetLanguage
+        }
+    }
+
     static func preferredSystemLanguage(fallback: LanguageOption) -> LanguageOption {
         for identifier in Locale.preferredLanguages {
             let normalizedIdentifier = identifier.lowercased().replacingOccurrences(of: "_", with: "-")

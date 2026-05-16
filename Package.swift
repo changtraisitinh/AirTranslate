@@ -27,7 +27,10 @@ let package = Package(
         ),
         .testTarget(
             name: "AirTranslateCoreTests",
-            dependencies: ["AirTranslateCore"]
+            dependencies: [
+                "AirTranslateCore",
+                "AirTranslate"
+            ]
         )
     ]
 )

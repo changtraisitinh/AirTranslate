@@ -13,7 +13,7 @@ This folder contains reproducible release materials for the Apache 2.0 open-sour
 
 - The app name remains `AirTranslate`.
 - The bundle identifier is `dev.appcaster.AirTranslate`.
-- The current release-candidate version is `1.2.1`.
+- The current release-candidate version is `1.3.0`.
 - The project is published as Apache 2.0 open source.
 - AirTranslate is an independent project and is not affiliated with Apple or OpenAI.
 - The release bundle must never include user API keys, bearer tokens, signing private keys, provisioning profiles, or local `.env` files.
@@ -21,7 +21,7 @@ This folder contains reproducible release materials for the Apache 2.0 open-sour
 Override the defaults when needed:
 
 ```bash
-BUNDLE_ID="com.example.AirTranslate" VERSION="1.2.1" BUILD_NUMBER="121"
+BUNDLE_ID="com.example.AirTranslate" VERSION="1.3.0" BUILD_NUMBER="130"
 ```
 
 ## Local Release Build
@@ -52,6 +52,8 @@ Release/product/AirTranslate-<version>-<build>.zip
 Release/product/AirTranslate-<version>.zip
 Release/product/AirTranslate.dmg
 Release/product/AirTranslate.dmg.sha256
+Release/product/AirTranslate-<version>.dmg
+Release/product/AirTranslate-<version>.dmg.sha256
 ```
 
 `Release/product/` is generated output and should stay out of commits.
@@ -80,3 +82,4 @@ git diff -- . ':(exclude).build/**' ':(exclude)Release/product/**' | \
 - Confirm the release ZIP does not contain API keys, tokens, private keys, provisioning profiles, or `.env` files.
 - Confirm OpenAI GPT mode still requires a user-provided key at runtime and does not bundle one.
 - Confirm `Release/product/` remains ignored.
+- Publish the new GitHub Release without deleting previous release versions or tags.

@@ -5,7 +5,6 @@ MODE="${1:-zip}"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRIPT_DIR="$ROOT_DIR/script"
-BUILD_NUMBER_DEFAULT="$(date -u +%Y%m%d%H%M)"
 # shellcheck source=app_metadata.sh
 source "$SCRIPT_DIR/app_metadata.sh"
 RELEASE_DIR="$ROOT_DIR/Release"
@@ -22,6 +21,8 @@ STABLE_ZIP_PATH="$PRODUCT_DIR/$APP_NAME-$VERSION.zip"
 DMG_STAGING_DIR="$BUILD_DIR/dmg"
 DMG_PATH="$PRODUCT_DIR/$APP_NAME.dmg"
 DMG_SHA256_PATH="$PRODUCT_DIR/$APP_NAME.dmg.sha256"
+VERSIONED_DMG_PATH="$PRODUCT_DIR/$APP_NAME-$VERSION.dmg"
+VERSIONED_DMG_SHA256_PATH="$PRODUCT_DIR/$APP_NAME-$VERSION.dmg.sha256"
 
 usage() {
   cat <<EOF
@@ -99,7 +100,9 @@ if [[ "$MODE" == "dmg" || "$MODE" == "all" ]]; then
     -ov \
     -format UDZO \
     "$DMG_PATH"
+  /bin/cp -p "$DMG_PATH" "$VERSIONED_DMG_PATH"
   (cd "$PRODUCT_DIR" && /usr/bin/shasum -a 256 "$(basename "$DMG_PATH")" > "$(basename "$DMG_SHA256_PATH")")
+  (cd "$PRODUCT_DIR" && /usr/bin/shasum -a 256 "$(basename "$VERSIONED_DMG_PATH")" > "$(basename "$VERSIONED_DMG_SHA256_PATH")")
 fi
 
 echo "Built open-source release app: $APP_BUNDLE"
@@ -110,4 +113,6 @@ fi
 if [[ "$MODE" == "dmg" || "$MODE" == "all" ]]; then
   echo "Built open-source release dmg: $DMG_PATH"
   echo "Built open-source release dmg checksum: $DMG_SHA256_PATH"
+  echo "Built versioned release dmg: $VERSIONED_DMG_PATH"
+  echo "Built versioned release dmg checksum: $VERSIONED_DMG_SHA256_PATH"
 fi

@@ -1,5 +1,21 @@
 # AirTranslate Version History
 
+## 1.3.0 - 2026-05-16
+
+### Added
+
+- Added input support for built-in, Bluetooth, and AirPods microphones.
+- Added source language auto-detection for Apple basic mode when language inference is available.
+
+### Changed
+
+- Improved microphone pipeline stability for long sessions.
+
+### Fixed
+
+- Fixed duplicate transcript input from unstable microphone transitions.
+- Reduced duplicate segments when switching capture source setup.
+
 ## 1.2.1 - 2026-05-14
 
 ### Changed

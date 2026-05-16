@@ -64,15 +64,41 @@ final class LiveSpeechTranscriber: @unchecked Sendable {
     )
     private var reusablePCMBufferCursor = 0
 
+    static func installedSupportedLanguages(from languages: [LanguageOption]) async -> [LanguageOption] {
+        guard SpeechTranscriber.isAvailable else { return [] }
+
+        let maximumLanguageCount = max(1, AssetInventory.maximumReservedLocales)
+        var installedLanguages: [LanguageOption] = []
+        for language in languages {
+            guard installedLanguages.count < maximumLanguageCount else { break }
+            guard let supportedLocale = await SpeechTranscriber.supportedLocale(equivalentTo: language.locale) else {
+                continue
+            }
+
+            let transcriber = SpeechTranscriber(locale: supportedLocale, preset: .progressiveTranscription)
+            switch await AssetInventory.status(forModules: [transcriber]) {
+            case .installed:
+                installedLanguages.append(language)
+            case .downloading, .supported, .unsupported:
+                continue
+            @unknown default:
+                continue
+            }
+        }
+
+        return installedLanguages
+    }
+
     func start(languages: [LanguageOption]) async throws {
         let authorized = await requestAuthorization()
         guard authorized else { throw SpeechError.notAuthorized }
 
         stop()
 
-        let uniqueLanguages = Array(
-            Dictionary(grouping: languages, by: \.id).compactMap { $0.value.first }
-        ).sorted { $0.id < $1.id }
+        var seenLanguageIDs = Set<String>()
+        let uniqueLanguages = languages.filter { language in
+            seenLanguageIDs.insert(language.id).inserted
+        }
         var transcribers: [(language: LanguageOption, transcriber: SpeechTranscriber)] = []
         for language in uniqueLanguages {
             guard let supportedLocale = await SpeechTranscriber.supportedLocale(equivalentTo: language.locale) else {
