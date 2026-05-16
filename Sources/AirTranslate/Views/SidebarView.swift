@@ -96,6 +96,19 @@ struct SidebarView: View {
                     isDisabled: session.isRunning
                 )
 
+                AudioInputSourcePicker(
+                    selection: $session.audioInputSource,
+                    isDisabled: session.isRunning
+                )
+
+                if session.audioInputSource == .microphone {
+                    MicrophoneInputDevicePicker(
+                        selection: $session.selectedMicrophoneInputDeviceID,
+                        devices: session.microphoneInputDevices,
+                        isDisabled: session.isRunning
+                    )
+                }
+
                 SessionDurationRadioGroup(
                     selection: $session.sessionDurationMode,
                     isDisabled: session.isRunning
@@ -104,6 +117,7 @@ struct SidebarView: View {
         }
         .onAppear {
             session.refreshModelAvailability()
+            session.refreshMicrophoneInputDevices()
             if usesOpenAIAutoLanguageFlow {
                 session.usePreferredLanguageForOpenAIOutput()
             }
@@ -646,6 +660,95 @@ private struct ProcessingEnginePicker: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
+    }
+}
+
+private struct AudioInputSourcePicker: View {
+    @Binding var selection: AudioInputSource
+    let isDisabled: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 7) {
+                Image(systemName: "waveform.badge.magnifyingglass")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 14)
+
+                Text(AppText.audioInputSource)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                Spacer(minLength: 0)
+            }
+
+            Picker(AppText.audioInputSource, selection: $selection) {
+                ForEach(AudioInputSource.allCases) { source in
+                    Text(source.title).tag(source)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(maxWidth: .infinity)
+            .disabled(isDisabled)
+            .accessibilityLabel(AppText.audioInputSource)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+    }
+}
+
+private struct MicrophoneInputDevicePicker: View {
+    @Binding var selection: String
+    let devices: [MicrophoneInputDevice]
+    let isDisabled: Bool
+
+    var body: some View {
+        Menu {
+            ForEach(devices) { device in
+                Button(device.name) {
+                    selection = device.id
+                }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "mic.circle.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 16)
+
+                Text(AppText.microphoneInputDevice)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+
+                Spacer(minLength: 6)
+
+                Text(selectedDeviceName)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.76)
+
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 7)
+            .frame(maxWidth: .infinity, minHeight: 38, alignment: .leading)
+            .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .help(AppText.microphoneInputDevice)
+        .accessibilityLabel(AppText.microphoneInputDevice)
+        .accessibilityValue(selectedDeviceName)
+    }
+
+    private var selectedDeviceName: String {
+        devices.first { $0.id == selection }?.name ?? MicrophoneInputDevice.systemDefault.name
     }
 }
 

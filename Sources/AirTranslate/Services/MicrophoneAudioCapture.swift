@@ -1,70 +1,96 @@
 import AVFoundation
-import CoreGraphics
-import ScreenCaptureKit
 
-protocol SystemAudioCaptureDelegate: AnyObject {
-    func systemAudioCapture(_ capture: SystemAudioCapture, didOutput sampleBuffer: CMSampleBuffer)
-    func systemAudioCapture(_ capture: SystemAudioCapture, didReceiveAudioSampleCount count: Int, level: Float?)
+protocol MicrophoneAudioCaptureDelegate: AnyObject {
+    func microphoneAudioCapture(_ capture: MicrophoneAudioCapture, didOutput sampleBuffer: CMSampleBuffer)
+    func microphoneAudioCapture(_ capture: MicrophoneAudioCapture, didReceiveAudioSampleCount count: Int, level: Float?)
 }
 
-final class SystemAudioCapture: NSObject, @unchecked Sendable {
+final class MicrophoneAudioCapture: NSObject, @unchecked Sendable {
     private static let audioLevelReportInterval = 8
 
-    weak var delegate: SystemAudioCaptureDelegate?
+    weak var delegate: MicrophoneAudioCaptureDelegate?
 
-    private var stream: SCStream?
+    private let sampleQueue = DispatchQueue(label: "AirTranslate.MicrophoneAudioCapture.sampleQueue")
+    private var session: AVCaptureSession?
+    private var output: AVCaptureAudioDataOutput?
     private var audioSampleCount = 0
-    private let sampleQueue = DispatchQueue(label: "AirTranslate.SystemAudioCapture.sampleQueue")
 
     @MainActor
-    func requestScreenRecordingAccess() throws {
-        guard CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess() else {
-            throw CaptureError.screenRecordingNotGranted
-        }
-    }
-
-    @MainActor
-    func start(sampleRate: Int = 16_000) async throws {
-        let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-
-        guard let display = content.displays.first else {
-            throw CaptureError.noDisplay
+    func start(sampleRate: Int = 16_000, deviceUniqueID: String? = nil) async throws {
+        guard await requestMicrophoneAccess() else {
+            throw CaptureError.microphoneNotGranted
         }
 
-        let filter = SCContentFilter(display: display, excludingWindows: [])
-        let configuration = SCStreamConfiguration()
-        configuration.width = 2
-        configuration.height = 2
-        configuration.minimumFrameInterval = CMTime(value: 1, timescale: 1)
-        configuration.capturesAudio = true
-        configuration.excludesCurrentProcessAudio = true
-        configuration.sampleRate = sampleRate
-        configuration.channelCount = 1
+        stop()
 
-        let stream = SCStream(filter: filter, configuration: configuration, delegate: nil)
-        try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: sampleQueue)
-        try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: sampleQueue)
-        try await stream.startCapture()
+        guard let device = MicrophoneDeviceCatalog.captureDevice(for: deviceUniqueID) else {
+            throw CaptureError.microphoneUnavailable
+        }
+
+        let session = AVCaptureSession()
+        let input = try AVCaptureDeviceInput(device: device)
+        let output = AVCaptureAudioDataOutput()
+        output.audioSettings = [
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVSampleRateKey: sampleRate,
+            AVNumberOfChannelsKey: 1,
+            AVLinearPCMBitDepthKey: 16,
+            AVLinearPCMIsFloatKey: false,
+            AVLinearPCMIsBigEndianKey: false
+        ]
+        output.setSampleBufferDelegate(self, queue: sampleQueue)
+
+        session.beginConfiguration()
+        guard session.canAddInput(input), session.canAddOutput(output) else {
+            session.commitConfiguration()
+            throw CaptureError.microphoneUnavailable
+        }
+        session.addInput(input)
+        session.addOutput(output)
+        session.commitConfiguration()
+
         audioSampleCount = 0
-        self.stream = stream
+        self.output = output
+        self.session = session
+        session.startRunning()
     }
 
-    func stop() async {
-        guard let stream else { return }
-        try? stream.removeStreamOutput(self, type: .screen)
-        try? stream.removeStreamOutput(self, type: .audio)
-        try? await stream.stopCapture()
-        self.stream = nil
+    func stop() {
+        output?.setSampleBufferDelegate(nil, queue: nil)
+        if let session, session.isRunning {
+            session.stopRunning()
+        }
+        output = nil
+        session = nil
+    }
+
+    @MainActor
+    private func requestMicrophoneAccess() async -> Bool {
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized:
+            return true
+        case .notDetermined:
+            return await AVCaptureDevice.requestAccess(for: .audio)
+        case .denied, .restricted:
+            return false
+        @unknown default:
+            return false
+        }
     }
 }
 
-extension SystemAudioCapture: SCStreamOutput {
-    func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
-        guard type == .audio, sampleBuffer.isValid else { return }
+extension MicrophoneAudioCapture: AVCaptureAudioDataOutputSampleBufferDelegate {
+    func captureOutput(
+        _ output: AVCaptureOutput,
+        didOutput sampleBuffer: CMSampleBuffer,
+        from connection: AVCaptureConnection
+    ) {
+        guard sampleBuffer.isValid else { return }
+
         audioSampleCount += 1
-        delegate?.systemAudioCapture(self, didOutput: sampleBuffer)
+        delegate?.microphoneAudioCapture(self, didOutput: sampleBuffer)
         if audioSampleCount == 1 || audioSampleCount % Self.audioLevelReportInterval == 0 {
-            delegate?.systemAudioCapture(
+            delegate?.microphoneAudioCapture(
                 self,
                 didReceiveAudioSampleCount: audioSampleCount,
                 level: audioLevel(from: sampleBuffer)
@@ -145,25 +171,5 @@ extension SystemAudioCapture: SCStreamOutput {
         let rms = sqrt(squareSum / Double(sampleCount))
         let decibels = 20 * log10(max(rms, 0.000_001))
         return Float(decibels)
-    }
-}
-
-enum CaptureError: LocalizedError {
-    case screenRecordingNotGranted
-    case microphoneNotGranted
-    case microphoneUnavailable
-    case noDisplay
-
-    var errorDescription: String? {
-        switch self {
-        case .screenRecordingNotGranted:
-            AppText.screenRecordingNotGranted
-        case .microphoneNotGranted:
-            AppText.microphoneNotGranted
-        case .microphoneUnavailable:
-            AppText.microphoneUnavailable
-        case .noDisplay:
-            AppText.noActiveDisplay
-        }
     }
 }

@@ -90,6 +90,36 @@ enum AppText {
     )
     static let swapLanguages = localized(english: "Swap Languages", korean: "언어 바꾸기", japanese: "言語を入れ替え", chineseSimplified: "交换语言")
     static let model = localized(english: "Mode", korean: "처리 방식", japanese: "処理方式", chineseSimplified: "处理方式")
+    static let audioInputSource = localized(
+        english: "Audio Input",
+        korean: "오디오 입력",
+        japanese: "オーディオ入力",
+        chineseSimplified: "音频输入"
+    )
+    static let systemAudioInput = localized(
+        english: "Mac Audio",
+        korean: "PC 소리",
+        japanese: "Mac音声",
+        chineseSimplified: "Mac 音频"
+    )
+    static let microphoneInput = localized(
+        english: "Microphone",
+        korean: "마이크",
+        japanese: "マイク",
+        chineseSimplified: "麦克风"
+    )
+    static let microphoneInputDevice = localized(
+        english: "Input Device",
+        korean: "입력 장치",
+        japanese: "入力デバイス",
+        chineseSimplified: "输入设备"
+    )
+    static let systemDefaultMicrophone = localized(
+        english: "System Default",
+        korean: "시스템 기본값",
+        japanese: "システム標準",
+        chineseSimplified: "系统默认"
+    )
     static let modelStatusChecking = localized(english: "Checking", korean: "확인 중", japanese: "確認中", chineseSimplified: "正在检查")
     static let modelStatusInstalled = localized(english: "Installed", korean: "설치됨", japanese: "インストール済み", chineseSimplified: "已安装")
     static let modelStatusDownloadRequired = localized(english: "Download Needed", korean: "다운로드 필요", japanese: "ダウンロードが必要", chineseSimplified: "需要下载")
@@ -433,18 +463,30 @@ enum AppText {
         english: "Checking screen recording permission...",
         korean: "화면 기록 권한 확인 중..."
     )
+    static let checkingMicrophonePermission = localized(
+        english: "Checking microphone permission...",
+        korean: "마이크 권한 확인 중..."
+    )
     static let checkingSpeechPermission = localized(
         english: "Checking speech recognition permission...",
         korean: "음성 인식 권한 확인 중..."
     )
-    static let startingCapture = localized(
-        english: "Starting Mac audio capture...",
-        korean: "Mac 오디오 캡처 시작 중..."
-    )
-    static let listeningForSpeech = localized(
-        english: "Listening to Mac audio, waiting for speech...",
-        korean: "Mac 오디오를 듣는 중, 음성을 기다리는 중..."
-    )
+    static func startingCapture(for source: AudioInputSource) -> String {
+        switch source {
+        case .systemAudio:
+            localized(english: "Starting Mac audio capture...", korean: "Mac 오디오 캡처 시작 중...")
+        case .microphone:
+            localized(english: "Starting microphone capture...", korean: "마이크 캡처 시작 중...")
+        }
+    }
+    static func listeningForSpeech(from source: AudioInputSource) -> String {
+        switch source {
+        case .systemAudio:
+            localized(english: "Listening to Mac audio, waiting for speech...", korean: "Mac 오디오를 듣는 중, 음성을 기다리는 중...")
+        case .microphone:
+            localized(english: "Listening to microphone, waiting for speech...", korean: "마이크를 듣는 중, 음성을 기다리는 중...")
+        }
+    }
     static let translating = localized(english: "Translating...", korean: "번역 중...")
     static let translationDisabledForSpeechOnly = localized(
         english: "Translation is off in Transcribe Only mode.",
@@ -554,25 +596,49 @@ enum AppText {
         )
     }
 
-    static func receivingAudioWaiting(sampleCount: Int) -> String {
-        localized(
-            english: "Receiving Mac audio (\(sampleCount) samples), waiting for speech...",
-            korean: "Mac 오디오 수신 중(\(sampleCount) 샘플), 음성을 기다리는 중..."
-        )
+    static func receivingAudioWaiting(sampleCount: Int, source: AudioInputSource) -> String {
+        switch source {
+        case .systemAudio:
+            localized(
+                english: "Receiving Mac audio (\(sampleCount) samples), waiting for speech...",
+                korean: "Mac 오디오 수신 중(\(sampleCount) 샘플), 음성을 기다리는 중..."
+            )
+        case .microphone:
+            localized(
+                english: "Receiving microphone audio (\(sampleCount) samples), waiting for speech...",
+                korean: "마이크 오디오 수신 중(\(sampleCount) 샘플), 음성을 기다리는 중..."
+            )
+        }
     }
 
-    static func receivingSilentAudio(sampleCount: Int, level: Int) -> String {
-        localized(
-            english: "Receiving silent audio (\(sampleCount) samples, \(level) dB). Check System Audio Recording.",
-            korean: "무음 오디오 수신 중(\(sampleCount) 샘플, \(level) dB). 시스템 오디오 녹음 권한을 확인하세요."
-        )
+    static func receivingSilentAudio(sampleCount: Int, level: Int, source: AudioInputSource) -> String {
+        switch source {
+        case .systemAudio:
+            localized(
+                english: "Receiving silent audio (\(sampleCount) samples, \(level) dB). Check System Audio Recording.",
+                korean: "무음 오디오 수신 중(\(sampleCount) 샘플, \(level) dB). 시스템 오디오 녹음 권한을 확인하세요."
+            )
+        case .microphone:
+            localized(
+                english: "Receiving quiet microphone audio (\(sampleCount) samples, \(level) dB). Check Microphone permission or input level.",
+                korean: "마이크 무음에 가까운 오디오 수신 중(\(sampleCount) 샘플, \(level) dB). 마이크 권한 또는 입력 레벨을 확인하세요."
+            )
+        }
     }
 
-    static func receivingAudioTranscribing(sampleCount: Int, level: Int) -> String {
-        localized(
-            english: "Receiving Mac audio (\(sampleCount) samples, \(level) dB), transcribing live...",
-            korean: "Mac 오디오 수신 중(\(sampleCount) 샘플, \(level) dB), 실시간 기록 중..."
-        )
+    static func receivingAudioTranscribing(sampleCount: Int, level: Int, source: AudioInputSource) -> String {
+        switch source {
+        case .systemAudio:
+            localized(
+                english: "Receiving Mac audio (\(sampleCount) samples, \(level) dB), transcribing live...",
+                korean: "Mac 오디오 수신 중(\(sampleCount) 샘플, \(level) dB), 실시간 기록 중..."
+            )
+        case .microphone:
+            localized(
+                english: "Receiving microphone audio (\(sampleCount) samples, \(level) dB), transcribing live...",
+                korean: "마이크 오디오 수신 중(\(sampleCount) 샘플, \(level) dB), 실시간 기록 중..."
+            )
+        }
     }
 
     static func unsupportedTranslation(source: String, target: String) -> String {
@@ -593,6 +659,14 @@ enum AppText {
     static let screenRecordingNotGranted = localized(
         english: "Screen Recording permission is not active for this signed AirTranslate app. Grant it once, then quit and relaunch AirTranslate.",
         korean: "서명된 AirTranslate 앱에 화면 기록 권한이 활성화되어 있지 않습니다. 한 번 허용한 뒤 AirTranslate를 종료하고 다시 실행하세요."
+    )
+    static let microphoneNotGranted = localized(
+        english: "Microphone permission is not active for this signed AirTranslate app. Grant it once, then quit and relaunch AirTranslate.",
+        korean: "서명된 AirTranslate 앱에 마이크 권한이 활성화되어 있지 않습니다. 한 번 허용한 뒤 AirTranslate를 종료하고 다시 실행하세요."
+    )
+    static let microphoneUnavailable = localized(
+        english: "The microphone input could not be started.",
+        korean: "마이크 입력을 시작할 수 없습니다."
     )
     static let noActiveDisplay = localized(
         english: "No active display was available for system audio capture.",

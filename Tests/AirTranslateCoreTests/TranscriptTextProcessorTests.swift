@@ -63,6 +63,18 @@ struct TranscriptTextProcessorTests {
     }
 
     @Test
+    func unrelatedPartialDoesNotReplaceCurrentPartial() {
+        #expect(!TranscriptTextProcessor.isRevisionOfCurrentPartial(
+            current: "방금 가",
+            incoming: "방금 물"
+        ))
+        #expect(!TranscriptTextProcessor.isRevisionOfCurrentPartial(
+            current: "First sentence from the speaker",
+            incoming: "Second sentence from the speaker"
+        ))
+    }
+
+    @Test
     func repeatedPartialAfterParagraphBreakCanBeRealSpeech() {
         let committed = """
         Previous line

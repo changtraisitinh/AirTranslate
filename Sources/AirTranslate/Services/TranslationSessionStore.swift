@@ -18,6 +18,8 @@ private enum SettingsKey {
     static let paragraphBreakSilenceInterval = "paragraphBreakSilenceInterval"
     static let savedTranscriptContentMode = "savedTranscriptContentMode"
     static let sessionDurationMode = "sessionDurationMode"
+    static let audioInputSource = "audioInputSource"
+    static let selectedMicrophoneInputDeviceID = "selectedMicrophoneInputDeviceID"
 }
 
 private struct TranslationRequest {
@@ -133,6 +135,13 @@ final class TranslationSessionStore {
     var sessionDurationMode = SessionDurationMode.standard {
         didSet { persistSelectedSettings() }
     }
+    var audioInputSource = AudioInputSource.systemAudio {
+        didSet { persistSelectedSettings() }
+    }
+    var selectedMicrophoneInputDeviceID = MicrophoneInputDevice.systemDefaultID {
+        didSet { persistSelectedSettings() }
+    }
+    var microphoneInputDevices = MicrophoneDeviceCatalog.availableInputDevices()
     var statusMessage = AppText.ready
     var toastMessage: String?
     var toastSequence = 0
@@ -149,9 +158,10 @@ final class TranslationSessionStore {
         }
     )
 
-    private let capture = SystemAudioCapture()
-    private let transcriber = LiveSpeechTranscriber()
-    private let openAITranscriber = OpenAIRealtimeTranscriber()
+    private let systemAudioCapture = SystemAudioCapture()
+    private var microphoneAudioCapture = MicrophoneAudioCapture()
+    @ObservationIgnored nonisolated(unsafe) private var transcriber = LiveSpeechTranscriber()
+    @ObservationIgnored nonisolated(unsafe) private var openAITranscriber = OpenAIRealtimeTranscriber()
     private let translator = AppleTranslationService()
     private let openAITranslator = OpenAITranslationService()
     private let foundationTranscriptPolisher = FoundationTranscriptPolisher()
@@ -194,6 +204,7 @@ final class TranslationSessionStore {
     private var isRestoringSelectedSettings = false
     private var modelAvailabilityTask: Task<Void, Never>?
     private var toastDismissTask: Task<Void, Never>?
+    private var captureStartTask: Task<Void, Never>?
     private var lastSpokenTranslatedText = ""
     private var spokenTranslationUnitKeys: Set<String> = []
     private var spokenTranslationUnitKeyOrder: [String] = []
@@ -228,7 +239,8 @@ final class TranslationSessionStore {
 
     init() {
         restoreSelectedSettings()
-        capture.delegate = self
+        systemAudioCapture.delegate = self
+        microphoneAudioCapture.delegate = self
         transcriber.delegate = self
         openAITranscriber.delegate = self
         loadSavedTranscripts()
@@ -281,23 +293,48 @@ final class TranslationSessionStore {
         isPaused = false
         setCaptionersPaused(false)
         isRunning = true
-        statusMessage = AppText.checkingScreenPermission
+        captureStartTask?.cancel()
+        statusMessage = audioInputSource == .microphone
+            ? AppText.checkingMicrophonePermission
+            : AppText.checkingScreenPermission
 
-        Task {
+        captureStartTask = Task { @MainActor in
             do {
-                try capture.requestScreenRecordingAccess()
+                if audioInputSource == .systemAudio {
+                    try systemAudioCapture.requestScreenRecordingAccess()
+                }
+                guard !Task.isCancelled, isRunning else { return }
                 statusMessage = AppText.checkingSpeechPermission
                 try await startCaptioners()
-                statusMessage = AppText.startingCapture
+                guard !Task.isCancelled, isRunning else {
+                    stopCaptioners()
+                    return
+                }
+                statusMessage = AppText.startingCapture(for: audioInputSource)
                 let usesOpenAIRealtimeAudio = openAITranscriptionModel.isEnabled
                     || openAITranslationModel.usesRealtimeAudioTranslation
-                try await capture.start(sampleRate: usesOpenAIRealtimeAudio ? 24_000 : 16_000)
-                statusMessage = AppText.listeningForSpeech
+                let sampleRate = usesOpenAIRealtimeAudio ? 24_000 : 16_000
+                switch audioInputSource {
+                case .systemAudio:
+                    try await systemAudioCapture.start(sampleRate: sampleRate)
+                case .microphone:
+                    try await microphoneAudioCapture.start(
+                        sampleRate: sampleRate,
+                        deviceUniqueID: selectedMicrophoneDevice.uniqueID
+                    )
+                }
+                guard !Task.isCancelled, isRunning else {
+                    await stopCapture()
+                    stopCaptioners()
+                    return
+                }
+                statusMessage = AppText.listeningForSpeech(from: audioInputSource)
                 warmTranslationSession()
             } catch {
+                guard !Task.isCancelled else { return }
                 isRunning = false
                 stopCaptioners()
-                await capture.stop()
+                await stopCapture()
                 statusMessage = AppText.startFailed(error.localizedDescription)
             }
         }
@@ -306,6 +343,8 @@ final class TranslationSessionStore {
     func stop() {
         guard isRunning else { return }
 
+        captureStartTask?.cancel()
+        captureStartTask = nil
         flushPendingCaptionPresentation()
         let didSaveTranscript = flushPendingTranscriptSave()
         resetLiveSessionState(clearsVisibleLines: false)
@@ -319,7 +358,7 @@ final class TranslationSessionStore {
         }
 
         Task {
-            await capture.stop()
+            await stopCapture()
         }
     }
 
@@ -342,7 +381,7 @@ final class TranslationSessionStore {
         setCaptionersPaused(false)
         isPaused = false
         lastRecognitionAt = Date()
-        statusMessage = AppText.listeningForSpeech
+        statusMessage = AppText.listeningForSpeech(from: audioInputSource)
     }
 
     func prepareForTermination() {
@@ -351,11 +390,24 @@ final class TranslationSessionStore {
     }
 
     func openPrivacySettings() {
-        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") else {
+        let privacyPane = audioInputSource == .microphone ? "Privacy_Microphone" : "Privacy_ScreenCapture"
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(privacyPane)") else {
             return
         }
 
         NSWorkspace.shared.open(url)
+    }
+
+    var selectedMicrophoneDevice: MicrophoneInputDevice {
+        microphoneInputDevices.first { $0.id == selectedMicrophoneInputDeviceID }
+            ?? .systemDefault
+    }
+
+    func refreshMicrophoneInputDevices() {
+        microphoneInputDevices = MicrophoneDeviceCatalog.availableInputDevices()
+        if !microphoneInputDevices.contains(where: { $0.id == selectedMicrophoneInputDeviceID }) {
+            selectedMicrophoneInputDeviceID = MicrophoneInputDevice.systemDefaultID
+        }
     }
 
     func saveOpenAIAPIKey(_ key: String) {
@@ -626,6 +678,12 @@ final class TranslationSessionStore {
     }
 
     private func startCaptioners() async throws {
+        stopCaptioners()
+        transcriber = LiveSpeechTranscriber()
+        transcriber.delegate = self
+        openAITranscriber = OpenAIRealtimeTranscriber()
+        openAITranscriber.delegate = self
+
         if openAITranslationModel.usesRealtimeAudioTranslation {
             try await openAITranscriber.startRealtimeTranslationOnly(
                 language: targetLanguage,
@@ -639,6 +697,8 @@ final class TranslationSessionStore {
     }
 
     private func stopCaptioners() {
+        transcriber.delegate = nil
+        openAITranscriber.delegate = nil
         transcriber.stop()
         openAITranscriber.stop()
     }
@@ -799,6 +859,14 @@ final class TranslationSessionStore {
            let durationMode = SessionDurationMode(rawValue: durationModeID) {
             sessionDurationMode = durationMode
         }
+        if let audioInputSourceID = defaults.string(forKey: SettingsKey.audioInputSource),
+           let source = AudioInputSource(rawValue: audioInputSourceID) {
+            audioInputSource = source
+        }
+        if let deviceID = defaults.string(forKey: SettingsKey.selectedMicrophoneInputDeviceID) {
+            selectedMicrophoneInputDeviceID = deviceID
+        }
+        refreshMicrophoneInputDevices()
     }
 
     private func persistSelectedSettings() {
@@ -818,6 +886,16 @@ final class TranslationSessionStore {
         defaults.set(paragraphBreakSilenceInterval, forKey: SettingsKey.paragraphBreakSilenceInterval)
         defaults.set(savedTranscriptContentMode.id, forKey: SettingsKey.savedTranscriptContentMode)
         defaults.set(sessionDurationMode.id, forKey: SettingsKey.sessionDurationMode)
+        defaults.set(audioInputSource.id, forKey: SettingsKey.audioInputSource)
+        defaults.set(selectedMicrophoneInputDeviceID, forKey: SettingsKey.selectedMicrophoneInputDeviceID)
+    }
+
+    private func stopCapture() async {
+        await systemAudioCapture.stop()
+        microphoneAudioCapture.delegate = nil
+        microphoneAudioCapture.stop()
+        microphoneAudioCapture = MicrophoneAudioCapture()
+        microphoneAudioCapture.delegate = self
     }
 
     private func floatingCaptionText(from text: String?) -> String {
@@ -1309,7 +1387,8 @@ final class TranslationSessionStore {
         allowsCommittedRevision: Bool,
         allowsCommittedReplay: Bool
     ) -> String {
-        if let replayTail = incomingTailAfterRecentCommittedReplay(incoming) {
+        if allowsCommittedReplay,
+           let replayTail = incomingTailAfterRecentCommittedReplay(incoming) {
             syncFloatingCommittedSourceTextToCommittedSourceText()
             return replayTail
         }
@@ -2493,15 +2572,51 @@ extension TranslationSessionStore: SystemAudioCaptureDelegate {
 
     private func audioStatusMessage(sampleCount: Int, level: Float?) -> String {
         guard let level else {
-            return AppText.receivingAudioWaiting(sampleCount: sampleCount)
+            return AppText.receivingAudioWaiting(sampleCount: sampleCount, source: audioInputSource)
         }
 
         let roundedLevel = Int(level.rounded())
         if level < -55 {
-            return AppText.receivingSilentAudio(sampleCount: sampleCount, level: roundedLevel)
+            return AppText.receivingSilentAudio(
+                sampleCount: sampleCount,
+                level: roundedLevel,
+                source: audioInputSource
+            )
         }
 
-        return AppText.receivingAudioTranscribing(sampleCount: sampleCount, level: roundedLevel)
+        return AppText.receivingAudioTranscribing(
+            sampleCount: sampleCount,
+            level: roundedLevel,
+            source: audioInputSource
+        )
+    }
+}
+
+extension TranslationSessionStore: MicrophoneAudioCaptureDelegate {
+    nonisolated func microphoneAudioCapture(_ capture: MicrophoneAudioCapture, didOutput sampleBuffer: CMSampleBuffer) {
+        transcriber.append(sampleBuffer)
+        openAITranscriber.append(sampleBuffer)
+    }
+
+    nonisolated func microphoneAudioCapture(
+        _ capture: MicrophoneAudioCapture,
+        didReceiveAudioSampleCount count: Int,
+        level: Float?
+    ) {
+        Task { @MainActor in
+            audioSampleCount = count
+            latestAudioLevel = level
+            guard !isPaused else {
+                statusMessage = AppText.paused
+                return
+            }
+            if isRunning, lines.isEmpty {
+                statusMessage = audioStatusMessage(sampleCount: count, level: level)
+            }
+            if let level, level < -50 {
+                scheduleTranscriptCleanup()
+            }
+        }
     }
 }
 

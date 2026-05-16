@@ -53,6 +53,8 @@ PLIST
   <string>$CATEGORY</string>
   <key>NSAudioCaptureUsageDescription</key>
   <string>AirTranslate captures system audio only after you start capture so it can transcribe and translate what is playing on this Mac.</string>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>AirTranslate can optionally capture microphone audio after you choose Microphone input and start capture.</string>
   <key>NSHighResolutionCapable</key>
   <true/>
   <key>NSHumanReadableCopyright</key>
@@ -63,7 +65,7 @@ PLIST
   <key>NSAppleEventsUsageDescription</key>
   <string>AirTranslate does not automate other apps.</string>
   <key>NSMicrophoneUsageDescription</key>
-  <string>AirTranslate may use speech services that require audio recognition permission.</string>
+  <string>AirTranslate can optionally capture microphone audio after you choose Microphone input and start capture.</string>
   <key>NSSystemAudioCaptureUsageDescription</key>
   <string>AirTranslate captures Mac system audio so it can transcribe and translate what is playing.</string>
 PLIST
