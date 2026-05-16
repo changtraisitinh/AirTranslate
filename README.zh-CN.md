@@ -7,9 +7,11 @@
 <p align="center">
   <a href="https://github.com/himomohi/AirTranslate/releases/latest/download/AirTranslate.dmg"><img alt="Download AirTranslate.dmg" src="https://img.shields.io/badge/Download-AirTranslate.dmg-2EA44F?style=for-the-badge&logo=apple&logoColor=white"></a>
   <a href="https://github.com/himomohi/AirTranslate/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/himomohi/AirTranslate?style=for-the-badge&label=Latest"></a>
+  <a href="https://himomohi.github.io/AirTranslate/"><img alt="Official guide site" src="https://img.shields.io/badge/Guide-Site-0A84FF?style=for-the-badge"></a>
 </p>
 
 <p align="center">
+  <a href="https://himomohi.github.io/AirTranslate/">官方指南网站</a> ·
   <a href="#下载">下载</a> ·
   <a href="#环境要求">环境要求</a> ·
   <a href="#隐私与-api-key">隐私</a> ·
@@ -26,6 +28,8 @@
 </p>
 
 AirTranslate 可以捕获 Mac 正在播放的音频，实时转写并翻译，也可以通过悬浮字幕窗口显示结果。它适用于会议、课程、视频、采访和直播等场景，避免通过外部麦克风转录造成的麻烦和音质损失。
+
+面向用户的产品介绍、安装指南和下载入口可在 [AirTranslate 官方指南网站](https://himomohi.github.io/AirTranslate/) 查看。
 
 默认流程使用 Apple 框架。基于 GPT 的 realtime 模型是可选功能，只有在用户提供自己的 OpenAI API key 后才会启用。
 

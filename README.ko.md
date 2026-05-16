@@ -7,9 +7,11 @@ macOS용 실시간 시스템 오디오 기록 및 번역 앱.
 <p align="center">
   <a href="https://github.com/himomohi/AirTranslate/releases/latest/download/AirTranslate.dmg"><img alt="Download AirTranslate.dmg" src="https://img.shields.io/badge/Download-AirTranslate.dmg-2EA44F?style=for-the-badge&logo=apple&logoColor=white"></a>
   <a href="https://github.com/himomohi/AirTranslate/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/himomohi/AirTranslate?style=for-the-badge&label=Latest"></a>
+  <a href="https://himomohi.github.io/AirTranslate/"><img alt="Official guide site" src="https://img.shields.io/badge/Guide-Site-0A84FF?style=for-the-badge"></a>
 </p>
 
 <p align="center">
+  <a href="https://himomohi.github.io/AirTranslate/">공식 안내 사이트</a> ·
   <a href="#다운로드">다운로드</a> ·
   <a href="#요구-사항">요구 사항</a> ·
   <a href="#개인정보와-api-키">개인정보</a> ·
@@ -26,6 +28,8 @@ macOS용 실시간 시스템 오디오 기록 및 번역 앱.
 </p>
 
 AirTranslate는 Mac에서 재생되는 소리를 실시간으로 기록하고 번역하며, 필요하면 플로팅 자막 창으로 표시합니다. 회의, 강의, 영상, 인터뷰, 스트림처럼 외부 마이크로 우회하기 애매한 오디오를 Mac 시스템 오디오에서 직접 받아 처리하는 데 초점을 둡니다.
+
+사용자용 소개, 설치 안내, 다운로드 경로는 [AirTranslate 공식 안내 사이트](https://himomohi.github.io/AirTranslate/)에서 볼 수 있습니다.
 
 기본 처리 흐름은 Apple 프레임워크를 사용합니다. GPT 기반 realtime 모델은 선택 사항이며, 사용자가 직접 OpenAI API 키를 입력했을 때만 사용할 수 있습니다.
 

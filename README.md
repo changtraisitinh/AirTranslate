@@ -7,9 +7,11 @@ Live system-audio transcription and translation for macOS.
 <p align="center">
   <a href="https://github.com/himomohi/AirTranslate/releases/latest/download/AirTranslate.dmg"><img alt="Download AirTranslate.dmg" src="https://img.shields.io/badge/Download-AirTranslate.dmg-2EA44F?style=for-the-badge&logo=apple&logoColor=white"></a>
   <a href="https://github.com/himomohi/AirTranslate/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/himomohi/AirTranslate?style=for-the-badge&label=Latest"></a>
+  <a href="https://himomohi.github.io/AirTranslate/"><img alt="Official guide site" src="https://img.shields.io/badge/Guide-Site-0A84FF?style=for-the-badge"></a>
 </p>
 
 <p align="center">
+  <a href="https://himomohi.github.io/AirTranslate/">Guide Site</a> ·
   <a href="#download">Download</a> ·
   <a href="#requirements">Requirements</a> ·
   <a href="#privacy-and-api-keys">Privacy</a> ·
@@ -26,6 +28,8 @@ Live system-audio transcription and translation for macOS.
 </p>
 
 AirTranslate captures audio playing on your Mac, turns it into a live transcript, translates it in real time, and can show the result as a floating caption overlay. It is designed for meetings, lectures, videos, interviews, and streams where routing audio through a microphone is awkward or lossy.
+
+For a user-facing overview, setup guide, and download path, visit the [AirTranslate Guide Site](https://himomohi.github.io/AirTranslate/).
 
 The default workflow uses Apple frameworks. GPT-powered realtime models are optional and can be enabled from the app when you provide your own OpenAI API key.
 
