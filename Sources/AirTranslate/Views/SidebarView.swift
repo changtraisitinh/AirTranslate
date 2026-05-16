@@ -59,17 +59,18 @@ struct SidebarView: View {
                     statusMessage: session.statusMessage
                 )
 
-                if needsPermissionAction {
-                    Button {
-                        session.openPrivacySettings()
-                    } label: {
-                        Image(systemName: "gear")
-                    }
-                    .buttonStyle(.borderless)
-                    .controlSize(.small)
-                    .help(AppText.openPrivacySettings)
-                    .accessibilityLabel(AppText.openPrivacySettings)
+                Button {
+                    session.openPrivacySettings()
+                } label: {
+                    Image(systemName: "gear")
                 }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+                .help(AppText.openPrivacySettings)
+                .accessibilityLabel(AppText.openPrivacySettings)
+                .opacity(needsPermissionAction ? 1 : 0)
+                .disabled(!needsPermissionAction)
+                .accessibilityHidden(!needsPermissionAction)
             }
         }
         .padding(12)
