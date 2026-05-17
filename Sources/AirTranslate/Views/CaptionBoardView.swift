@@ -82,24 +82,28 @@ private struct CaptionTranscriptFeed: View {
     @State private var longSessionAutoScrollTask: Task<Void, Never>?
 
     var body: some View {
+        if !session.hasTranscriptContent && !session.isRunning {
+            ContentUnavailableView(
+                AppText.noCaptionsYet,
+                systemImage: "captions.bubble",
+                description: Text(AppText.noCaptionsDescription)
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(24)
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.08))
+            }
+        } else {
+            transcriptScrollView
+        }
+    }
+
+    private var transcriptScrollView: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 10) {
-                    if !session.hasTranscriptContent && !session.isRunning {
-                        ContentUnavailableView(
-                            AppText.noCaptionsYet,
-                            systemImage: "captions.bubble",
-                            description: Text(AppText.noCaptionsDescription)
-                        )
-                        .frame(maxWidth: .infinity, minHeight: 320)
-                        .padding(24)
-                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                .strokeBorder(Color.primary.opacity(0.08))
-                        }
-                    }
-
                     if session.shouldShowTranscript && session.lines.isEmpty {
                         Text(AppText.waitingForTranscript)
                             .font(.callout)
