@@ -1,5 +1,11 @@
 # AirTranslate Version History
 
+## 1.3.2 - 2026-05-17
+
+### Fixed
+
+- Centered the empty transcript placeholder in the main workspace.
+
 ## 1.3.1 - 2026-05-16
 
 ### Changed
