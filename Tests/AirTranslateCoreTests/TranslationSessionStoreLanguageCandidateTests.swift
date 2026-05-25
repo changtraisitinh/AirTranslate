@@ -140,4 +140,16 @@ struct TranslationSessionStoreLanguageCandidateTests {
         #expect(line.sourceDisplayText.hasPrefix("..."))
         #expect(line.translatedDisplayText.hasPrefix("..."))
     }
+
+    @Test
+    @MainActor
+    func transcribeOnlyModeHidesTranslationPane() {
+        let session = TranslationSessionStore()
+
+        session.selectedModel = .appleSpeechOnly
+        #expect(!session.shouldShowTranslationPane)
+
+        session.selectedModel = .appleSystem
+        #expect(session.shouldShowTranslationPane)
+    }
 }

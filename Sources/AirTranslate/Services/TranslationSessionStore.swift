@@ -671,6 +671,10 @@ final class TranslationSessionStore {
         isRunning || !lines.isEmpty
     }
 
+    var shouldShowTranslationPane: Bool {
+        selectedModel != .appleSpeechOnly
+    }
+
     var selectedSavedTranscript: SavedTranscript? {
         guard let selectedSavedTranscriptID else { return nil }
         return savedTranscripts.first { $0.id == selectedSavedTranscriptID }
