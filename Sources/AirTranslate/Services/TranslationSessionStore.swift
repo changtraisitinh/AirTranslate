@@ -158,7 +158,13 @@ final class TranslationSessionStore {
         didSet { persistSelectedSettings() }
     }
     var floatingCaptionDisplayMode = FloatingCaptionDisplayMode.originalAndTranslation {
-        didSet { persistSelectedSettings() }
+        didSet {
+            if isTranscribeOnlyMode, floatingCaptionDisplayMode != .original {
+                floatingCaptionDisplayMode = .original
+                return
+            }
+            persistSelectedSettings()
+        }
     }
     var floatingCaptionTextSize = FloatingCaptionTextSize.medium {
         didSet { persistSelectedSettings() }
@@ -641,10 +647,12 @@ final class TranslationSessionStore {
     private func syncLiveOutputModeWithLanguagePair() {
         guard !isRestoringSelectedSettings, !isRunning, !isUsingOpenAIRealtime else { return }
 
-        if sourceLanguage == targetLanguage {
+        if selectedModel == .appleSpeechOnly {
+            if targetLanguage != sourceLanguage {
+                targetLanguage = sourceLanguage
+            }
+        } else if sourceLanguage == targetLanguage {
             useTranscribeOnlyMode()
-        } else if selectedModel == .appleSpeechOnly {
-            useTranslationMode()
         }
     }
 
@@ -776,6 +784,10 @@ final class TranslationSessionStore {
 
     var shouldShowTranslationPane: Bool {
         !isTranscribeOnlyMode
+    }
+
+    var availableFloatingCaptionDisplayModes: [FloatingCaptionDisplayMode] {
+        isTranscribeOnlyMode ? [.original] : FloatingCaptionDisplayMode.allCases
     }
 
     var selectedSavedTranscript: SavedTranscript? {

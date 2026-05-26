@@ -167,12 +167,26 @@ struct TranslationSessionStoreLanguageCandidateTests {
 
     @Test
     @MainActor
-    func differentLanguagePairRestoresTranslationModeFromTranscribeOnly() {
+    func sourceLanguageChangeKeepsTranscribeOnlyModeAndSyncsHiddenTarget() {
         let session = TranslationSessionStore()
 
         session.sourceLanguage = LanguageOption.english
+        session.targetLanguage = LanguageOption.english
         session.useTranscribeOnlyMode()
         session.targetLanguage = LanguageOption.supported[2]
+
+        #expect(session.liveOutputMode == .transcription)
+        #expect(!session.shouldShowTranslationPane)
+        #expect(session.targetLanguage == session.sourceLanguage)
+    }
+
+    @Test
+    @MainActor
+    func explicitTranslationModeRestoresTranslationModeFromTranscribeOnly() {
+        let session = TranslationSessionStore()
+
+        session.useTranscribeOnlyMode()
+        session.useTranslationMode()
 
         #expect(session.liveOutputMode == .translation)
         #expect(session.shouldShowTranslationPane)
@@ -183,6 +197,7 @@ struct TranslationSessionStoreLanguageCandidateTests {
     func transcribeOnlyModeUsesOriginalOnlyFloatingCaptionsAndRestoresPreviousMode() {
         let session = TranslationSessionStore()
 
+        session.useTranslationMode()
         session.floatingCaptionDisplayMode = .originalAndTranslation
         #expect(session.floatingCaptionDisplayMode == .originalAndTranslation)
 
@@ -192,5 +207,17 @@ struct TranslationSessionStoreLanguageCandidateTests {
 
         session.useTranslationMode()
         #expect(session.floatingCaptionDisplayMode == .originalAndTranslation)
+    }
+
+    @Test
+    @MainActor
+    func transcribeOnlyModeKeepsFloatingCaptionsOriginalOnly() {
+        let session = TranslationSessionStore()
+
+        session.useTranscribeOnlyMode()
+        session.floatingCaptionDisplayMode = .translation
+
+        #expect(session.floatingCaptionDisplayMode == .original)
+        #expect(session.availableFloatingCaptionDisplayModes == [.original])
     }
 }

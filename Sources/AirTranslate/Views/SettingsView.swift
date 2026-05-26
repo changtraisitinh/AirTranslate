@@ -76,7 +76,7 @@ struct SettingsView: View {
 
             Section(AppText.floatingCaptions) {
                 Picker(AppText.floatingDisplay, selection: $session.floatingCaptionDisplayMode) {
-                    ForEach(FloatingCaptionDisplayMode.allCases) { mode in
+                    ForEach(session.availableFloatingCaptionDisplayModes) { mode in
                         Text(mode.title).tag(mode)
                     }
                 }

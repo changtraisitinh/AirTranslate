@@ -136,7 +136,7 @@ struct MenuBarStatusView: View {
             )
 
             HStack(spacing: 8) {
-                ForEach(FloatingCaptionDisplayMode.allCases) { mode in
+                ForEach(session.availableFloatingCaptionDisplayModes) { mode in
                     Button {
                         session.floatingCaptionDisplayMode = mode
                     } label: {
