@@ -23,6 +23,9 @@ Release/product/
 # Local Codex/app environment
 .codex/
 
+# Local contributor notes
+devlog/
+
 # Local secrets and signing material
 .env
 .env.*
