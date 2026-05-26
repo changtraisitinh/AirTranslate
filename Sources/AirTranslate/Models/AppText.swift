@@ -297,6 +297,19 @@ enum AppText {
         korean: "OpenAI 실시간 번역"
     )
     static let output = localized(english: "Output", korean: "출력", japanese: "出力", chineseSimplified: "输出")
+    static let outputMode = localized(english: "Output Mode", korean: "출력 모드", japanese: "出力モード", chineseSimplified: "输出模式")
+    static let transcribeOnly = localized(
+        english: "Transcribe Only",
+        korean: "전사만",
+        japanese: "文字起こしのみ",
+        chineseSimplified: "仅转写"
+    )
+    static let transcriptionSettings = localized(
+        english: "Transcription Settings",
+        korean: "전사 설정",
+        japanese: "文字起こし設定",
+        chineseSimplified: "转写设置"
+    )
     static let translationSettings = localized(english: "Translation Settings", korean: "번역 설정", japanese: "翻訳設定", chineseSimplified: "翻译设置")
     static let configureTranslationSettings = localized(
         english: "Configure Translation Settings",
@@ -536,6 +549,15 @@ enum AppText {
 
     static func languageSummary(source: String, target: String) -> String {
         localized(english: "\(source) to \(target)", korean: "\(source) → \(target)")
+    }
+
+    static func transcribeLanguageSummary(source: String) -> String {
+        localized(
+            english: "Transcribe \(source)",
+            korean: "\(source) 전사",
+            japanese: "\(source) の文字起こし",
+            chineseSimplified: "转写\(source)"
+        )
     }
 
     static func openAILanguageSummary(target: String) -> String {

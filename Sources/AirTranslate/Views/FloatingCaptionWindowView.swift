@@ -30,19 +30,32 @@ struct FloatingCaptionWindowView: View {
         switch session.floatingCaptionDisplayMode {
         case .original:
             subtitleText(sourceText, font: session.floatingCaptionTextSize.primaryFont)
+            if !noticeText.isEmpty {
+                noticeSubtitleText(noticeText)
+            }
         case .originalAndTranslation:
             if !sourceText.isEmpty {
                 subtitleText(sourceText, font: session.floatingCaptionTextSize.secondaryFont)
                     .opacity(0.82)
-                subtitleText(translationText.isEmpty ? " " : translationText, font: session.floatingCaptionTextSize.primaryFont)
-                    .opacity(translationText.isEmpty ? 0 : 1)
+                if !translationText.isEmpty {
+                    subtitleText(translationText, font: session.floatingCaptionTextSize.primaryFont)
+                } else if !noticeText.isEmpty {
+                    noticeSubtitleText(noticeText)
+                } else {
+                    subtitleText(" ", font: session.floatingCaptionTextSize.primaryFont)
+                        .opacity(0)
+                }
             }
-            if sourceText.isEmpty && translationText.isEmpty {
+            if sourceText.isEmpty && translationText.isEmpty && noticeText.isEmpty {
                 subtitleText(AppText.noFloatingCaptionsYet, font: session.floatingCaptionTextSize.primaryFont)
+            } else if sourceText.isEmpty && translationText.isEmpty {
+                noticeSubtitleText(noticeText)
             }
         case .translation:
             if !translationText.isEmpty {
                 subtitleText(translationText, font: session.floatingCaptionTextSize.primaryFont)
+            } else if !noticeText.isEmpty {
+                noticeSubtitleText(noticeText)
             } else if sourceText.isEmpty {
                 subtitleText(AppText.noFloatingCaptionsYet, font: session.floatingCaptionTextSize.primaryFont)
             }
@@ -55,6 +68,10 @@ struct FloatingCaptionWindowView: View {
 
     private var translationText: String {
         session.floatingTranslationText
+    }
+
+    private var noticeText: String {
+        session.floatingNoticeText ?? ""
     }
 
     private var lineLimit: Int {
@@ -70,7 +87,7 @@ struct FloatingCaptionWindowView: View {
 
         switch session.floatingCaptionDisplayMode {
         case .original, .translation:
-            textHeight = primaryHeight
+            textHeight = noticeText.isEmpty ? primaryHeight : primaryHeight + secondaryHeight + 8
         case .originalAndTranslation:
             textHeight = primaryHeight + secondaryHeight + 8
         }
@@ -94,5 +111,10 @@ struct FloatingCaptionWindowView: View {
         .lineSpacing(5)
         .shadow(color: .black.opacity(0.95), radius: 3, x: 0, y: 1)
         .shadow(color: .black.opacity(0.65), radius: 8, x: 0, y: 2)
+    }
+
+    private func noticeSubtitleText(_ text: String) -> some View {
+        subtitleText(text, font: session.floatingCaptionTextSize.secondaryFont)
+            .opacity(0.78)
     }
 }
