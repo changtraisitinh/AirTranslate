@@ -18,6 +18,15 @@ struct FloatingCaptionTextFormatterTests {
     }
 
     @Test
+    func floatingCaptionTailKeepsMediumEnglishCaptionOnOneLine() {
+        let text = "This caption should stay on one line with the wider threshold."
+
+        let caption = text.floatingCaptionTail(maxLines: 2)
+
+        #expect(caption == text)
+    }
+
+    @Test
     func floatingCaptionTailWrapsCJKTextWithoutWhitespace() {
         let text = "감가상각비와이연법인세회계처리를연속해서설명하는강의문장이길어져도자막창에서는읽기좋게나뉘어야합니다"
 

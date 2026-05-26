@@ -1,8 +1,8 @@
 import Foundation
 
 private enum FloatingCaptionTextLayout {
-    // Approximate readable caption width: about 42 ASCII chars or 26 CJK chars.
-    static let lineWidthUnits = 26.0
+    // Approximate readable caption width: about 63 ASCII chars or 39 CJK chars.
+    static let lineWidthUnits = 39.0
     static let scanLineMultiplier = 4
 
     static func displayWidth(of character: Character) -> Double {
