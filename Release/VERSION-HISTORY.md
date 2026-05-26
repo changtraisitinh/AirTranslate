@@ -1,5 +1,20 @@
 # AirTranslate Version History
 
+## 1.3.3 - 2026-05-26
+
+### Added
+
+- Added a dedicated Transcribe Only output mode that shows only the original transcript pane.
+
+### Changed
+
+- Floating captions keep the wrapping improvements from 1.3.2-era development and stay original-only during Transcribe Only sessions.
+- Transcribe Only language changes now keep the hidden target language aligned with the visible source language.
+
+### Fixed
+
+- Prevented blank translation-only floating captions while Transcribe Only mode is active.
+
 ## 1.3.2 - 2026-05-17
 
 ### Fixed
