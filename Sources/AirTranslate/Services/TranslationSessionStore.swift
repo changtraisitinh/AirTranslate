@@ -1040,7 +1040,10 @@ final class TranslationSessionStore {
     private func floatingCaptionText(from text: String?) -> String {
         guard let text else { return "" }
 
-        return text.floatingCaptionTail(maxLines: floatingCaptionLineCount.rawValue)
+        return text.floatingCaptionTail(
+            maxLines: floatingCaptionLineCount.rawValue,
+            lineWidthUnits: floatingCaptionTextSize.floatingLineWidthUnits
+        )
     }
 
     private func loadSavedTranscripts() {

@@ -1,8 +1,7 @@
 import Foundation
 
 private enum FloatingCaptionTextLayout {
-    // Approximate readable caption width: about 63 ASCII chars or 39 CJK chars.
-    static let lineWidthUnits = 39.0
+    static let defaultLineWidthUnits = 32.0
     static let scanLineMultiplier = 4
 
     static func displayWidth(of character: Character) -> Double {
@@ -19,8 +18,12 @@ private enum FloatingCaptionTextLayout {
 }
 
 extension String {
-    func floatingCaptionTail(maxLines: Int) -> String {
+    func floatingCaptionTail(
+        maxLines: Int,
+        lineWidthUnits: Double = FloatingCaptionTextLayout.defaultLineWidthUnits
+    ) -> String {
         let maxLines = max(1, maxLines)
+        let lineWidthUnits = max(1, lineWidthUnits)
         let trimmedText = trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedText.isEmpty else { return "" }
         let scanCharacters = maxLines * 72 * FloatingCaptionTextLayout.scanLineMultiplier
@@ -28,7 +31,7 @@ extension String {
         let scanText = String(captionText.boundedSuffix(maxCharacters: scanCharacters))
 
         let logicalLines = scanText.floatingCaptionWrappedLines(
-            maxLineWidth: FloatingCaptionTextLayout.lineWidthUnits
+            maxLineWidth: lineWidthUnits
         )
 
         return logicalLines
