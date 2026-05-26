@@ -1,5 +1,11 @@
 # AirTranslate Version History
 
+## 1.3.4 - 2026-05-26
+
+### Changed
+
+- Floating caption wrapping now scales with the selected text size so larger captions keep readable text within the floating window.
+
 ## 1.3.3 - 2026-05-26
 
 ### Added

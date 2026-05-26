@@ -6,6 +6,16 @@ All notable changes to AirTranslate are documented in this file.
 
 No unreleased changes yet.
 
+## 1.3.4 - 2026-05-26
+
+### Changed
+
+- Floating caption wrapping now scales with the selected text size so larger caption fonts keep more usable text on screen.
+
+### Applied Pull Requests
+
+- Applied `lidge-jun` / YEEE's PR #6, "fix: scale floating caption wrapping by text size", as the 1.3.4 user-facing floating-caption improvement.
+
 ## 1.3.3 - 2026-05-26
 
 ### Added
