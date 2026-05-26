@@ -6,6 +6,12 @@ All notable changes to AirTranslate are documented in this file.
 
 No unreleased changes yet.
 
+## 1.3.2 - 2026-05-17
+
+### Fixed
+
+- Centered the empty transcript placeholder so the no-captions state no longer sits too high in the main workspace.
+
 ## 1.3.1 - 2026-05-16
 
 ### Changed
