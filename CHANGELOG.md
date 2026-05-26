@@ -6,6 +6,27 @@ All notable changes to AirTranslate are documented in this file.
 
 No unreleased changes yet.
 
+## 1.3.3 - 2026-05-26
+
+### Added
+
+- Added a clearer Transcribe Only output mode that hides the translation pane and keeps the live workspace focused on the original transcript.
+
+### Changed
+
+- Floating captions now preserve readable line wrapping while streaming and stay original-only while Transcribe Only mode is active.
+- Transcribe Only mode now keeps its hidden target language synchronized with the visible source language so changing the source language does not silently switch back to Translation mode.
+
+### Fixed
+
+- Prevented translation-only floating caption display choices from creating blank captions while Transcribe Only mode is active.
+
+## 1.3.2 - 2026-05-17
+
+### Fixed
+
+- Centered the empty transcript placeholder so the no-captions state no longer sits too high in the main workspace.
+
 ## 1.3.1 - 2026-05-16
 
 ### Changed

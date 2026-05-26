@@ -36,6 +36,14 @@ struct SettingsView: View {
             }
 
             Section(AppText.transcript) {
+                Picker(AppText.outputMode, selection: liveOutputModeBinding) {
+                    ForEach(LiveOutputMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .disabled(session.isRunning)
+
                 Picker(AppText.sessionLength, selection: $session.sessionDurationMode) {
                     ForEach(SessionDurationMode.allCases) { mode in
                         Text(mode.title).tag(mode)
@@ -68,7 +76,7 @@ struct SettingsView: View {
 
             Section(AppText.floatingCaptions) {
                 Picker(AppText.floatingDisplay, selection: $session.floatingCaptionDisplayMode) {
-                    ForEach(FloatingCaptionDisplayMode.allCases) { mode in
+                    ForEach(session.availableFloatingCaptionDisplayModes) { mode in
                         Text(mode.title).tag(mode)
                     }
                 }
@@ -114,6 +122,17 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .frame(width: 420)
         .padding()
+    }
+
+    private var liveOutputModeBinding: Binding<LiveOutputMode> {
+        Binding(
+            get: {
+                session.liveOutputMode
+            },
+            set: { mode in
+                session.useLiveOutputMode(mode)
+            }
+        )
     }
 }
 

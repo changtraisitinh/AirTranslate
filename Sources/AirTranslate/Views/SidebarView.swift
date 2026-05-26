@@ -84,13 +84,18 @@ struct SidebarView: View {
 
     private var sessionCard: some View {
         SidebarCard(
-            title: AppText.translationSettings,
+            title: session.isTranscribeOnlyMode ? AppText.transcriptionSettings : AppText.translationSettings,
             headerAccessory: {
                 openConfigurationButton
             }
         ) {
             VStack(spacing: 10) {
                 languageControls
+
+                LiveOutputModePicker(
+                    selection: liveOutputModeBinding,
+                    isDisabled: session.isRunning
+                )
 
                 ProcessingEnginePicker(
                     selection: processingEngineBinding,
@@ -127,7 +132,9 @@ struct SidebarView: View {
 
     @ViewBuilder
     private var languageControls: some View {
-        if usesOpenAIAutoLanguageFlow {
+        if session.isTranscribeOnlyMode {
+            transcriptionLanguageControls
+        } else if usesOpenAIAutoLanguageFlow {
             VStack(alignment: .leading, spacing: 6) {
                 AutoLanguageRow(helpText: AppText.openAILanguageModeDescription)
                 PreferredLanguageRow(
@@ -184,6 +191,17 @@ struct SidebarView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    private var transcriptionLanguageControls: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                CompactLanguagePicker(title: AppText.from, selection: $session.sourceLanguage)
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var appleSourceAutoDetectionBinding: Binding<Bool> {
@@ -243,6 +261,17 @@ struct SidebarView: View {
                         isConfigurationPresented = true
                     }
                 }
+            }
+        )
+    }
+
+    private var liveOutputModeBinding: Binding<LiveOutputMode> {
+        Binding(
+            get: {
+                session.liveOutputMode
+            },
+            set: { mode in
+                session.useLiveOutputMode(mode)
             }
         )
     }
@@ -418,7 +447,12 @@ private struct ConfigurationSheetView: View {
             VStack(spacing: 6) {
                 ForEach(IntelligenceModel.allCases) { model in
                     Button {
-                        session.selectedModel = model
+                        switch model {
+                        case .appleSpeechOnly:
+                            session.useTranscribeOnlyMode()
+                        case .appleSystem, .appleOnDevice:
+                            session.useTranslationMode()
+                        }
                     } label: {
                         ModelModeRow(
                             model: model,

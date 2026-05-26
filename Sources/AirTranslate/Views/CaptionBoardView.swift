@@ -117,7 +117,10 @@ private struct CaptionTranscriptFeed: View {
                     }
 
                     ForEach(session.lines) { line in
-                        CaptionLineView(line: line)
+                        CaptionLineView(
+                            line: line,
+                            showsTranslationPane: session.shouldShowTranslationPane
+                        )
                             .id(line.id)
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
@@ -163,30 +166,44 @@ private struct CaptionTranscriptFeed: View {
 
 private struct CaptionLineView: View {
     let line: CaptionLine
+    let showsTranslationPane: Bool
 
     var body: some View {
-        HStack(alignment: .top, spacing: 16) {
-            TranscriptPane(
-                title: AppText.original,
-                description: AppText.originalDescription,
-                text: line.sourceText,
-                displayText: line.sourceDisplayText,
-                revision: line.revision,
-                isPrimary: true
-            )
-            TranscriptPane(
-                title: AppText.translation,
-                description: AppText.translationDescription,
-                text: line.translatedText,
-                displayText: line.translatedDisplayText,
-                revision: line.revision,
-                isPrimary: false
-            )
+        Group {
+            if showsTranslationPane {
+                HStack(alignment: .top, spacing: 16) {
+                    originalPane
+                    translationPane
+                }
+            } else {
+                originalPane
+            }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }
-}
 
+    private var originalPane: some View {
+        TranscriptPane(
+            title: AppText.original,
+            description: AppText.originalDescription,
+            text: line.sourceText,
+            displayText: line.sourceDisplayText,
+            revision: line.revision,
+            isPrimary: true
+        )
+    }
+
+    private var translationPane: some View {
+        TranscriptPane(
+            title: AppText.translation,
+            description: AppText.translationDescription,
+            text: line.translatedText,
+            displayText: line.translatedDisplayText,
+            revision: line.revision,
+            isPrimary: false
+        )
+    }
+}
 
 private struct TranscriptPane: View {
     let title: String
