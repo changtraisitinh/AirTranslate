@@ -37,6 +37,19 @@ enum FloatingCaptionTextSize: String, CaseIterable, Identifiable {
         secondaryPointSize * 1.28
     }
 
+    var floatingLineWidthUnits: Double {
+        switch self {
+        case .small:
+            39
+        case .medium:
+            32
+        case .large:
+            25
+        case .extraLarge:
+            20
+        }
+    }
+
     private var primaryPointSize: CGFloat {
         switch self {
         case .small:
