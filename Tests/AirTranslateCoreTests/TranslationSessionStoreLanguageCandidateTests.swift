@@ -140,4 +140,57 @@ struct TranslationSessionStoreLanguageCandidateTests {
         #expect(line.sourceDisplayText.hasPrefix("..."))
         #expect(line.translatedDisplayText.hasPrefix("..."))
     }
+
+    @Test
+    @MainActor
+    func transcribeOnlyModeHidesTranslationPane() {
+        let session = TranslationSessionStore()
+
+        session.selectedModel = .appleSpeechOnly
+        #expect(!session.shouldShowTranslationPane)
+
+        session.selectedModel = .appleSystem
+        #expect(session.shouldShowTranslationPane)
+    }
+
+    @Test
+    @MainActor
+    func sameLanguagePairSwitchesToTranscribeOnlyMode() {
+        let session = TranslationSessionStore()
+
+        session.sourceLanguage = LanguageOption.english
+        session.targetLanguage = LanguageOption.english
+
+        #expect(session.liveOutputMode == .transcription)
+        #expect(!session.shouldShowTranslationPane)
+    }
+
+    @Test
+    @MainActor
+    func differentLanguagePairRestoresTranslationModeFromTranscribeOnly() {
+        let session = TranslationSessionStore()
+
+        session.sourceLanguage = LanguageOption.english
+        session.useTranscribeOnlyMode()
+        session.targetLanguage = LanguageOption.supported[2]
+
+        #expect(session.liveOutputMode == .translation)
+        #expect(session.shouldShowTranslationPane)
+    }
+
+    @Test
+    @MainActor
+    func transcribeOnlyModeUsesOriginalOnlyFloatingCaptionsAndRestoresPreviousMode() {
+        let session = TranslationSessionStore()
+
+        session.floatingCaptionDisplayMode = .originalAndTranslation
+        #expect(session.floatingCaptionDisplayMode == .originalAndTranslation)
+
+        session.useTranscribeOnlyMode()
+        #expect(session.floatingCaptionDisplayMode == .original)
+        #expect(session.floatingNoticeText == nil)
+
+        session.useTranslationMode()
+        #expect(session.floatingCaptionDisplayMode == .originalAndTranslation)
+    }
 }

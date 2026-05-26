@@ -83,6 +83,7 @@ final class TranslationSessionStore {
     private static let floatingCaptionImmediateExtensionCharacterLimit = 28
     private static let minimumFloatingCaptionDwell = 1.4
     private static let maximumFloatingCaptionDwell = 3.6
+    private static let transcribeOnlyNoticeDisplayDuration: TimeInterval = 10
     private static let appleAutoDetectionMinimumConfidence = 0.35
     private static let appleAutoDetectionLanguageSwitchMinimumConfidence = 0.72
     private static let isAppleSourceAutoDetectionTemporarilyDisabled = true
@@ -111,6 +112,7 @@ final class TranslationSessionStore {
             resetTranslationCache()
             resetDubbingProgress()
             refreshModelAvailability()
+            syncLiveOutputModeWithLanguagePair()
         }
     }
     var targetLanguage = LanguageOption.supported[1] {
@@ -119,6 +121,7 @@ final class TranslationSessionStore {
             resetTranslationCache()
             resetDubbingProgress()
             refreshModelAvailability()
+            syncLiveOutputModeWithLanguagePair()
         }
     }
     var selectedModel = IntelligenceModel.appleSystem {
@@ -190,6 +193,7 @@ final class TranslationSessionStore {
     var statusMessage = AppText.ready
     var toastMessage: String?
     var toastSequence = 0
+    var floatingNoticeText: String?
     var lines: [CaptionLine] = []
     var savedTranscripts: [SavedTranscript] = []
     var selectedSavedTranscriptID: String?
@@ -253,10 +257,13 @@ final class TranslationSessionStore {
     private var isRestoringSelectedSettings = false
     private var modelAvailabilityTask: Task<Void, Never>?
     private var toastDismissTask: Task<Void, Never>?
+    private var transcribeOnlyNoticeDismissTask: Task<Void, Never>?
     private var captureStartTask: Task<Void, Never>?
     private var lastSpokenTranslatedText = ""
     private var spokenTranslationUnitKeys: Set<String> = []
     private var spokenTranslationUnitKeyOrder: [String] = []
+    private var hasShownTranscribeOnlyNoticeForCurrentActivation = false
+    private var floatingCaptionDisplayModeBeforeTranscribeOnly: FloatingCaptionDisplayMode?
 
     private enum SavedTranscriptPart {
         case original
@@ -277,6 +284,14 @@ final class TranslationSessionStore {
 
     var isUsingOpenAIRealtimeTranslation: Bool {
         openAITranslationModel.usesRealtimeAudioTranslation
+    }
+
+    var isTranscribeOnlyMode: Bool {
+        selectedModel == .appleSpeechOnly && !isUsingOpenAIRealtime
+    }
+
+    var liveOutputMode: LiveOutputMode {
+        isTranscribeOnlyMode ? .transcription : .translation
     }
 
     private struct SavedTranscriptFile {
@@ -544,6 +559,9 @@ final class TranslationSessionStore {
     }
 
     var languageSummary: String {
+        if isTranscribeOnlyMode {
+            return AppText.transcribeLanguageSummary(source: sourceLanguage.localizedTitle)
+        }
         if isUsingOpenAIRealtimeTranslation {
             return AppText.openAILanguageSummary(target: targetLanguage.localizedTitle)
         }
@@ -572,12 +590,14 @@ final class TranslationSessionStore {
     }
 
     func useAppleDefaultMode() {
+        clearTranscribeOnlyNotice(resetActivation: true)
         selectedModel = .appleSystem
         openAITranscriptionModel = .off
         openAITranslationModel = .off
     }
 
     func useGPTRealtimeMode() {
+        clearTranscribeOnlyNotice(resetActivation: true)
         selectedModel = .appleSystem
         isTranscriptLintEnabled = false
         if !openAITranscriptionModel.isEnabled {
@@ -587,6 +607,89 @@ final class TranslationSessionStore {
             openAITranslationModel = .gptRealtimeTranslate
         }
         usePreferredLanguageForOpenAIOutput()
+    }
+
+    func useLiveOutputMode(_ mode: LiveOutputMode) {
+        switch mode {
+        case .translation:
+            useTranslationMode()
+        case .transcription:
+            useTranscribeOnlyMode()
+        }
+    }
+
+    func useTranslationMode() {
+        clearTranscribeOnlyNotice(resetActivation: true)
+        if selectedModel == .appleSpeechOnly {
+            selectedModel = .appleSystem
+        }
+        restoreFloatingCaptionDisplayModeAfterTranscribeOnly()
+    }
+
+    func useTranscribeOnlyMode() {
+        if floatingCaptionDisplayModeBeforeTranscribeOnly == nil {
+            floatingCaptionDisplayModeBeforeTranscribeOnly = floatingCaptionDisplayMode
+        }
+        floatingCaptionDisplayMode = .original
+        openAITranscriptionModel = .off
+        openAITranslationModel = .off
+        isDubbingEnabled = false
+        selectedModel = .appleSpeechOnly
+        clearTranscribeOnlyNotice(resetActivation: true)
+    }
+
+    private func syncLiveOutputModeWithLanguagePair() {
+        guard !isRestoringSelectedSettings, !isRunning, !isUsingOpenAIRealtime else { return }
+
+        if sourceLanguage == targetLanguage {
+            useTranscribeOnlyMode()
+        } else if selectedModel == .appleSpeechOnly {
+            useTranslationMode()
+        }
+    }
+
+    private func restoreFloatingCaptionDisplayModeAfterTranscribeOnly() {
+        guard let previousMode = floatingCaptionDisplayModeBeforeTranscribeOnly else { return }
+
+        floatingCaptionDisplayModeBeforeTranscribeOnly = nil
+        floatingCaptionDisplayMode = previousMode
+    }
+
+    private func showTranscribeOnlyNoticeForCurrentActivation() {
+        guard isTranscribeOnlyMode,
+              !hasShownTranscribeOnlyNoticeForCurrentActivation
+        else {
+            return
+        }
+
+        hasShownTranscribeOnlyNoticeForCurrentActivation = true
+        floatingNoticeText = AppText.translationDisabledForSpeechOnly
+        statusMessage = AppText.translationDisabledForSpeechOnly
+        transcribeOnlyNoticeDismissTask?.cancel()
+
+        transcribeOnlyNoticeDismissTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(Int(Self.transcribeOnlyNoticeDisplayDuration * 1_000)))
+            guard !Task.isCancelled else { return }
+
+            if floatingNoticeText == AppText.translationDisabledForSpeechOnly {
+                floatingNoticeText = nil
+            }
+            if statusMessage == AppText.translationDisabledForSpeechOnly {
+                statusMessage = isRunning ? AppText.listeningForSpeech(from: audioInputSource) : AppText.ready
+            }
+            transcribeOnlyNoticeDismissTask = nil
+        }
+    }
+
+    private func clearTranscribeOnlyNotice(resetActivation: Bool) {
+        transcribeOnlyNoticeDismissTask?.cancel()
+        transcribeOnlyNoticeDismissTask = nil
+        if floatingNoticeText == AppText.translationDisabledForSpeechOnly {
+            floatingNoticeText = nil
+        }
+        if resetActivation {
+            hasShownTranscribeOnlyNoticeForCurrentActivation = false
+        }
     }
 
     func modelAvailability(for model: IntelligenceModel) -> ModelAvailability {
@@ -669,6 +772,10 @@ final class TranslationSessionStore {
 
     var shouldShowTranscript: Bool {
         isRunning || !lines.isEmpty
+    }
+
+    var shouldShowTranslationPane: Bool {
+        !isTranscribeOnlyMode
     }
 
     var selectedSavedTranscript: SavedTranscript? {
@@ -887,6 +994,7 @@ final class TranslationSessionStore {
         translationTask = nil
         transcriptCleanupTask?.cancel()
         transcriptCleanupTask = nil
+        clearTranscribeOnlyNotice(resetActivation: clearsVisibleLines)
 
         if clearsVisibleLines {
             lines.removeAll()
@@ -2433,12 +2541,8 @@ final class TranslationSessionStore {
     private func requestTranslation(for line: CaptionLine, source: LanguageOption, target: LanguageOption) {
         guard !openAITranslationModel.usesRealtimeAudioTranslation else { return }
 
-        guard selectedModel != .appleSpeechOnly else {
-            markTranslationUnavailable(
-                AppText.translationDisabledForSpeechOnly,
-                for: line,
-                matching: line.sourceText
-            )
+        guard !isTranscribeOnlyMode else {
+            showTranscribeOnlyNoticeForCurrentActivation()
             return
         }
 
