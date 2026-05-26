@@ -21,6 +21,13 @@ No unreleased changes yet.
 
 - Prevented translation-only floating caption display choices from creating blank captions while Transcribe Only mode is active.
 
+### Applied Pull Requests
+
+- Applied `lidge-jun` / YEEE's PR #4, "fix: wrap floating captions while streaming", as part of the 1.3.3 floating-caption behavior.
+- Applied `lidge-jun` / YEEE's PR #5, "fix: improve transcribe-only mode behavior", with follow-up fixes for hidden target-language sync and Transcribe Only floating-display limits.
+- Included PR #7, "Release AirTranslate 1.3.3", by `himomohi` / Appcaster to ship the aligned version, release notes, artifacts, and harness record.
+- Release preparation also includes `lidge-jun` / YEEE's PR #3, "docs: add repository structure guide".
+
 ## 1.3.2 - 2026-05-17
 
 ### Fixed
