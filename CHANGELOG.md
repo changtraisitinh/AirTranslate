@@ -6,6 +6,29 @@ All notable changes to AirTranslate are documented in this file.
 
 No unreleased changes yet.
 
+## 1.3.6 - 2026-06-13
+
+### Added
+
+- Added Gemini 3.5 Live Translate mode for direct live audio translation with input and output transcripts.
+- Added Gemini API key storage and missing-key guidance alongside the existing OpenAI key workflow.
+- Added a compact LIVE Translation entry point for API-backed GPT and Gemini modes.
+- Added sidebar voice-output controls with a single volume slider for translated speech.
+
+### Changed
+
+- GPT mode now uses the realtime translation path only and shows source transcript updates returned by the realtime session.
+- API-backed modes now use a shared translated-audio output path and default voice output on.
+- Apple basic mode keeps voice output off by default while still allowing users to enable it manually.
+- Settings and sidebar mode controls were redesigned so Apple, GPT Realtime, and Gemini Live are clearly separated.
+
+### Fixed
+
+- Fixed the quick source-language button path so changing the source language no longer silently switches to Transcribe Only mode.
+- Fixed GPT realtime translation sessions not showing the original transcript.
+- Fixed translated audio playback so GPT and Gemini live modes output the translated voice through one speaker path.
+- Fixed Apple basic-mode translated speech output lowering the Mac system volume.
+
 ## 1.3.5 - 2026-06-13
 
 ### Changed

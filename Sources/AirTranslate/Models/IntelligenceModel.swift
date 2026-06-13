@@ -96,7 +96,6 @@ enum OpenAIRealtimeTranscriptionModel: String, CaseIterable, Identifiable {
 enum OpenAIRealtimeTranslationModel: String, CaseIterable, Identifiable {
     case off
     case gptRealtimeTranslate = "gpt-realtime-translate"
-    case gptRealtimeTranslateOnly = "gpt-realtime-translate-only"
 
     var id: String { rawValue }
 
@@ -105,13 +104,11 @@ enum OpenAIRealtimeTranslationModel: String, CaseIterable, Identifiable {
         case .off:
             AppText.localized(english: "Use Apple Translation", korean: "Apple Translation 사용", japanese: "Apple Translationを使用", chineseSimplified: "使用 Apple Translation")
         case .gptRealtimeTranslate:
-            "gpt-realtime-translate"
-        case .gptRealtimeTranslateOnly:
             AppText.localized(
-                english: "gpt-realtime-translate · translation only",
+                english: "gpt-realtime-translate · live translation",
                 korean: "gpt-realtime-translate · 실시간 번역만",
-                japanese: "gpt-realtime-translate · 翻訳のみ",
-                chineseSimplified: "gpt-realtime-translate · 仅翻译"
+                japanese: "gpt-realtime-translate · Live翻訳",
+                chineseSimplified: "gpt-realtime-translate · 实时翻译"
             )
         }
     }
@@ -128,7 +125,7 @@ enum OpenAIRealtimeTranslationModel: String, CaseIterable, Identifiable {
         switch self {
         case .off:
             ""
-        case .gptRealtimeTranslate, .gptRealtimeTranslateOnly:
+        case .gptRealtimeTranslate:
             "gpt-realtime-translate"
         }
     }
@@ -136,7 +133,7 @@ enum OpenAIRealtimeTranslationModel: String, CaseIterable, Identifiable {
 
 enum GeminiTranslationModel: String, CaseIterable, Identifiable, Sendable {
     case off
-    case gemini35Flash = "gemini-3.5-flash"
+    case gemini35LiveTranslate = "gemini-3.5-live-translate-preview"
 
     var id: String { rawValue }
 
@@ -149,8 +146,8 @@ enum GeminiTranslationModel: String, CaseIterable, Identifiable, Sendable {
                 japanese: "Apple Translationを使用",
                 chineseSimplified: "使用 Apple Translation"
             )
-        case .gemini35Flash:
-            "Gemini 3.5 Flash"
+        case .gemini35LiveTranslate:
+            "Gemini 3.5 Live Translate"
         }
     }
 
@@ -162,7 +159,7 @@ enum GeminiTranslationModel: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .off:
             ""
-        case .gemini35Flash:
+        case .gemini35LiveTranslate:
             rawValue
         }
     }

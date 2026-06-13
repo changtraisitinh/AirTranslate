@@ -207,11 +207,60 @@ struct TranslationSessionStoreLanguageCandidateTests {
     func sameLanguagePairSwitchesToTranscribeOnlyMode() {
         let session = TranslationSessionStore()
 
+        session.useAppleDefaultMode()
         session.sourceLanguage = LanguageOption.english
         session.targetLanguage = LanguageOption.english
 
         #expect(session.liveOutputMode == .transcription)
         #expect(!session.shouldShowTranslationPane)
+    }
+
+    @Test
+    @MainActor
+    func quickSourceLanguageChangeKeepsTranslationModeWhenItWouldMatchTarget() {
+        let session = TranslationSessionStore()
+        session.useAppleDefaultMode()
+        session.useQuickSourceLanguage(.english)
+        session.useQuickTargetLanguage(.korean)
+
+        session.useQuickSourceLanguage(.korean)
+
+        #expect(session.sourceLanguage == .korean)
+        #expect(session.targetLanguage == .english)
+        #expect(session.liveOutputMode == .translation)
+        #expect(session.shouldShowTranslationPane)
+    }
+
+    @Test
+    @MainActor
+    func quickLanguageSwapKeepsTranslationMode() {
+        let session = TranslationSessionStore()
+        session.useAppleDefaultMode()
+        session.useQuickSourceLanguage(.english)
+        session.useQuickTargetLanguage(.korean)
+
+        session.swapQuickLanguagePair()
+
+        #expect(session.sourceLanguage == .korean)
+        #expect(session.targetLanguage == .english)
+        #expect(session.liveOutputMode == .translation)
+        #expect(session.shouldShowTranslationPane)
+    }
+
+    @Test
+    @MainActor
+    func quickTargetLanguageRejectsMatchingSourceWithoutChangingOutputMode() {
+        let session = TranslationSessionStore()
+        session.useAppleDefaultMode()
+        session.useQuickSourceLanguage(.english)
+        session.useQuickTargetLanguage(.korean)
+
+        session.useQuickTargetLanguage(.english)
+
+        #expect(session.sourceLanguage == .english)
+        #expect(session.targetLanguage == .korean)
+        #expect(session.liveOutputMode == .translation)
+        #expect(session.shouldShowTranslationPane)
     }
 
     @Test
@@ -272,20 +321,189 @@ struct TranslationSessionStoreLanguageCandidateTests {
 
     @Test
     @MainActor
-    func geminiModeUsesAppleSpeechAndDisablesRealtimeProviders() {
+    func geminiModeUsesLiveTranslateAndDisablesOtherRealtimeProviders() {
         let session = TranslationSessionStore()
         session.useGPTRealtimeMode()
 
         session.useGeminiTranslationMode()
 
         #expect(session.selectedModel == .appleSystem)
-        #expect(session.geminiTranslationModel == .gemini35Flash)
+        #expect(session.geminiTranslationModel == .gemini35LiveTranslate)
         #expect(!session.openAITranscriptionModel.isEnabled)
         #expect(!session.openAITranslationModel.isEnabled)
         #expect(session.liveOutputMode == .translation)
+        #expect(session.isDubbingEnabled)
 
         session.useAppleDefaultMode()
         #expect(session.geminiTranslationModel == .off)
+        #expect(!session.isDubbingEnabled)
+    }
+
+    @Test
+    @MainActor
+    func openAIModeUsesRealtimeTranslateOnlyAndLeavesAPIForTranscription() {
+        let session = TranslationSessionStore()
+        session.isDubbingEnabled = false
+
+        session.useGPTRealtimeMode()
+
+        #expect(session.liveOutputMode == .translation)
+        #expect(!session.openAITranscriptionModel.isEnabled)
+        #expect(session.openAITranslationModel == .gptRealtimeTranslate)
+        #expect(session.isUsingOpenAIRealtime)
+        #expect(session.isUsingProviderRealtimeTranslation)
+        #expect(session.isDubbingEnabled)
+
+        session.useTranscribeOnlyMode()
+
+        #expect(session.liveOutputMode == .transcription)
+        #expect(!session.openAITranscriptionModel.isEnabled)
+        #expect(!session.openAITranslationModel.isEnabled)
+        #expect(!session.isUsingOpenAIRealtime)
+        #expect(!session.isUsingProviderRealtimeTranslation)
+        #expect(!session.shouldShowTranslationPane)
+    }
+
+    @Test
+    @MainActor
+    func openAIRealtimeTranslationShowsSourceTranscriptAndTranslation() async {
+        let session = TranslationSessionStore()
+        session.useGPTRealtimeMode()
+        session.isRunning = true
+        let transcriber = LiveSpeechTranscriber()
+
+        session.liveSpeechTranscriber(
+            transcriber,
+            didRecognizeSourceTranscript: "Hello from the source audio.",
+            confidence: 0.5
+        )
+        await Task.yield()
+
+        #expect(session.lines.first?.sourceText == "Hello from the source audio.")
+        #expect(session.lines.first?.translatedText == AppText.translating)
+
+        session.liveSpeechTranscriber(
+            transcriber,
+            didTranslate: "원본 오디오에서 안녕하세요.",
+            language: .korean,
+            confidence: 0.5
+        )
+        await Task.yield()
+
+        #expect(session.lines.first?.sourceText == "Hello from the source audio.")
+        #expect(session.lines.first?.translatedText == "원본 오디오에서 안녕하세요.")
+    }
+
+    @Test
+    @MainActor
+    func appleDefaultModeDisablesVoiceOutputToAvoidSystemDucking() {
+        let session = TranslationSessionStore()
+        session.isDubbingEnabled = true
+
+        session.useAppleDefaultMode()
+
+        #expect(!session.isDubbingEnabled)
+        #expect(!session.isUsingProviderRealtimeTranslation)
+    }
+
+    @Test
+    @MainActor
+    func apiRealtimeVoiceOutputDefaultsOnAndCanBeTurnedOff() {
+        let session = TranslationSessionStore()
+
+        session.useAppleDefaultMode()
+        #expect(!session.isDubbingEnabled)
+
+        session.useGPTRealtimeMode()
+        #expect(session.isDubbingEnabled)
+
+        session.isDubbingEnabled = false
+        #expect(!session.isDubbingEnabled)
+
+        session.useAppleDefaultMode()
+        session.useGeminiTranslationMode()
+        #expect(session.isDubbingEnabled)
+    }
+
+    @Test
+    @MainActor
+    func geminiLiveVoiceOutputTurnsOffWhenLeavingMode() {
+        let session = TranslationSessionStore()
+        session.isDubbingEnabled = false
+
+        session.useGeminiTranslationMode()
+        #expect(session.isDubbingEnabled)
+
+        session.useAppleDefaultMode()
+        #expect(!session.isDubbingEnabled)
+    }
+
+    @Test
+    @MainActor
+    func liveTranslationVolumeSettingClampsToSupportedRange() {
+        let session = TranslationSessionStore()
+
+        session.translatedVoiceVolume = -1
+        #expect(session.translatedVoiceVolume == 0)
+
+        session.translatedVoiceVolume = 1.5
+        #expect(session.translatedVoiceVolume == 1)
+    }
+
+    @Test
+    @MainActor
+    func transcribeOnlyModeTurnsOffGeminiLiveTranslate() {
+        let session = TranslationSessionStore()
+        session.useGeminiTranslationMode()
+        session.hasGeminiAPIKey = false
+
+        session.useTranscribeOnlyMode()
+        session.modelAvailabilityByModelID[IntelligenceModel.appleSpeechOnly.id] = ModelAvailability(
+            state: .installed,
+            detail: "Installed"
+        )
+
+        #expect(session.liveOutputMode == .transcription)
+        #expect(!session.isUsingGeminiTranslation)
+        #expect(!session.shouldShowTranslationPane)
+        #expect(session.startReadinessAssessment().canStart)
+
+        session.useTranslationMode()
+
+        #expect(session.liveOutputMode == .translation)
+        #expect(!session.isUsingGeminiTranslation)
+        #expect(session.shouldShowTranslationPane)
+    }
+
+    @Test
+    @MainActor
+    func stopReplacesPendingTranslationPlaceholderOnVisibleLines() {
+        let session = TranslationSessionStore(modelAvailabilityProvider: { _, _ in [:] })
+        session.isRunning = true
+        session.lines = [
+            CaptionLine(
+                sourceText: "But let's do the real test now.",
+                translatedText: AppText.translating,
+                createdAt: Date(),
+                isFinal: false
+            )
+        ]
+
+        session.stop()
+
+        #expect(session.lines.first?.sourceText == "But let's do the real test now.")
+        #expect(session.lines.first?.translatedText == AppText.translationCancelled)
+        #expect(session.statusMessage == AppText.stopped)
+    }
+
+    @Test
+    func liveSourceCompatibilityAcceptsGrowingTranscriptLine() {
+        let requested = "This is a short Gemini translation test."
+        let current = "This is a short Gemini translation test. The app should show Korean text quickly."
+
+        #expect(TranslationSessionStore.isCompatibleLiveSource(current: current, requested: requested))
+        #expect(TranslationSessionStore.isCompatibleLiveSource(current: "  \(current)", requested: requested))
+        #expect(!TranslationSessionStore.isCompatibleLiveSource(current: "A different line.", requested: requested))
     }
 
     @Test
@@ -387,7 +605,7 @@ struct TranslationSessionStoreLanguageCandidateTests {
         )
         session.sourceLanguage = .english
         session.targetLanguage = .korean
-        session.selectedModel = .appleSystem
+        session.useAppleDefaultMode()
         session.lines = [existingLine]
         session.modelAvailabilityByModelID[session.selectedModel.id] = ModelAvailability(
             state: .downloadRequired,

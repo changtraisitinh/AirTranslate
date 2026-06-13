@@ -12,6 +12,9 @@ private enum SettingsKey {
     static let openAITranslationModelID = "openAITranslationModelID"
     static let geminiTranslationModelID = "geminiTranslationModelID"
     static let isDubbingEnabled = "isDubbingEnabled"
+    static let appleVoiceOutputEnabled = "appleVoiceOutputEnabled"
+    static let providerVoiceOutputEnabled = "providerVoiceOutputEnabled"
+    static let translatedVoiceVolume = "translatedVoiceVolume"
     static let isTranscriptLintEnabled = "isTranscriptLintEnabled"
     static let floatingCaptionDisplayMode = "floatingCaptionDisplayMode"
     static let floatingCaptionTextSize = "floatingCaptionTextSize"
@@ -95,9 +98,12 @@ final class TranslationSessionStore {
     var isPaused = false
     var isDubbingEnabled = false {
         didSet {
+            if !isApplyingVoiceOutputDefault {
+                rememberVoiceOutputPreference(isDubbingEnabled)
+            }
             persistSelectedSettings()
             if isDubbingEnabled {
-                if isUsingOpenAIRealtimeTranslation {
+                if isUsingProviderRealtimeTranslation {
                     openAIRealtimeAudioOutput.stop()
                 } else {
                     primeDubbingBaselineToCurrentTranslation()
@@ -107,6 +113,18 @@ final class TranslationSessionStore {
                 lastSpokenTranslatedText = ""
                 clearSpokenTranslationUnits()
             }
+        }
+    }
+    var translatedVoiceVolume = 1.0 {
+        didSet {
+            let clampedVolume = Self.clampedVolume(translatedVoiceVolume)
+            guard translatedVoiceVolume == clampedVolume else {
+                translatedVoiceVolume = clampedVolume
+                return
+            }
+
+            persistSelectedSettings()
+            applyTranslatedVoiceVolume()
         }
     }
     var sourceLanguage = LanguageOption.supported[0] {
@@ -137,6 +155,7 @@ final class TranslationSessionStore {
     }
     var hasOpenAIAPIKey = OpenAIAPIKeyStore.hasAPIKey()
     var hasGeminiAPIKey = GeminiAPIKeyStore.hasAPIKey()
+    var requestedSettingsCategoryID: String?
     var openAITranscriptionModel = OpenAIRealtimeTranscriptionModel.off {
         didSet {
             if openAITranscriptionModel.isEnabled {
@@ -163,6 +182,7 @@ final class TranslationSessionStore {
     var geminiTranslationModel = GeminiTranslationModel.off {
         didSet {
             if geminiTranslationModel.isEnabled {
+                isTranscriptLintEnabled = false
                 selectedModel = .appleSystem
                 openAITranscriptionModel = .off
                 openAITranslationModel = .off
@@ -241,9 +261,9 @@ final class TranslationSessionStore {
     private var microphoneAudioCapture = MicrophoneAudioCapture()
     @ObservationIgnored nonisolated(unsafe) private var transcriber = LiveSpeechTranscriber()
     @ObservationIgnored nonisolated(unsafe) private var openAITranscriber = OpenAIRealtimeTranscriber()
+    @ObservationIgnored nonisolated(unsafe) private var geminiLiveTranslator = GeminiLiveTranslationService()
     private let translator = AppleTranslationService()
     private let openAITranslator = OpenAITranslationService()
-    private let geminiTranslator = GeminiTranslationService()
     private let foundationTranscriptPolisher = FoundationTranscriptPolisher()
     private let speechOutput = TranslatedSpeechOutput()
     private let openAIRealtimeAudioOutput = OpenAIRealtimeAudioOutput()
@@ -284,10 +304,14 @@ final class TranslationSessionStore {
     private var pendingTranslationSourceText = ""
     private var translatedSegmentsBySource: [String: String] = [:]
     private var translationCacheKeyOrder: [String] = []
+    private var realtimeTranslationSourceText = ""
     private var realtimeTranslationOnlyText = ""
+    private var geminiLiveInputTranscriptText = ""
+    private var geminiLiveOutputTranscriptText = ""
     private var activeAutosaveSourceText = ""
     private var activeAutosaveTranslatedText = ""
     private var isRestoringSelectedSettings = false
+    private var isUpdatingLanguagePair = false
     private var modelAvailabilityTask: Task<Void, Never>?
     private var autoStartAfterModelAssetDownloadTask: Task<Void, Never>?
     private var toastDismissTask: Task<Void, Never>?
@@ -299,6 +323,9 @@ final class TranslationSessionStore {
     private var spokenTranslationUnitKeyOrder: [String] = []
     private var hasShownTranscribeOnlyNoticeForCurrentActivation = false
     private var floatingCaptionDisplayModeBeforeTranscribeOnly: FloatingCaptionDisplayMode?
+    private var appleVoiceOutputEnabled = false
+    private var providerVoiceOutputEnabled = true
+    private var isApplyingVoiceOutputDefault = false
 
     private enum SavedTranscriptPart {
         case original
@@ -314,7 +341,7 @@ final class TranslationSessionStore {
     }
 
     var isUsingOpenAIRealtime: Bool {
-        openAITranscriptionModel.isEnabled || openAITranslationModel.isEnabled
+        openAITranslationModel.isEnabled
     }
 
     var isUsingOpenAIRealtimeTranslation: Bool {
@@ -325,8 +352,12 @@ final class TranslationSessionStore {
         geminiTranslationModel.isEnabled
     }
 
+    var isUsingProviderRealtimeTranslation: Bool {
+        isUsingOpenAIRealtimeTranslation || isUsingGeminiTranslation
+    }
+
     var isTranscribeOnlyMode: Bool {
-        selectedModel == .appleSpeechOnly && !isUsingOpenAIRealtime && !isUsingGeminiTranslation
+        selectedModel == .appleSpeechOnly
     }
 
     var liveOutputMode: LiveOutputMode {
@@ -357,11 +388,13 @@ final class TranslationSessionStore {
         self.modelAssetDownloader = modelAssetDownloader
         self.transcriptsDirectoryOverride = transcriptsDirectoryURL
         restoreSelectedSettings()
+        applyTranslatedVoiceVolume()
         syncLiveOutputModeWithLanguagePair()
         systemAudioCapture.delegate = self
         microphoneAudioCapture.delegate = self
         transcriber.delegate = self
         openAITranscriber.delegate = self
+        geminiLiveTranslator.delegate = self
         loadSavedTranscripts()
         loadProductHuntScreenshotDemoIfRequested()
         refreshModelAvailability()
@@ -438,7 +471,9 @@ final class TranslationSessionStore {
                     try systemAudioCapture.requestScreenRecordingAccess()
                 }
                 guard !Task.isCancelled, isStarting else { return }
-                statusMessage = AppText.checkingSpeechPermission
+                statusMessage = isUsingGeminiTranslation
+                    ? AppText.connectingGeminiLiveTranslation
+                    : AppText.checkingSpeechPermission
                 try await startCaptioners()
                 guard !Task.isCancelled, isStarting else {
                     stopCaptioners()
@@ -521,7 +556,7 @@ final class TranslationSessionStore {
             return isTranscribeOnlyMode ? nil : .appleOnDevice
         }
         if isUsingGeminiTranslation {
-            return .appleSpeechOnly
+            return nil
         }
         return selectedModel
     }
@@ -712,6 +747,7 @@ final class TranslationSessionStore {
             && isAppleSourceAutoDetectionEnabled
             && !openAITranscriptionModel.isEnabled
             && !openAITranslationModel.isEnabled
+            && !isUsingGeminiTranslation
     }
 
     var isAppleSourceAutoDetectionAvailable: Bool {
@@ -725,25 +761,64 @@ final class TranslationSessionStore {
         }
     }
 
+    func useQuickSourceLanguage(_ language: LanguageOption) {
+        guard !isRunning else { return }
+        guard !isTranscribeOnlyMode else {
+            sourceLanguage = language
+            return
+        }
+
+        let previousSourceLanguage = sourceLanguage
+        let nextTargetLanguage = language == targetLanguage
+            ? fallbackTargetLanguage(excluding: language, preferred: previousSourceLanguage)
+            : targetLanguage
+        updateLanguagePair(source: language, target: nextTargetLanguage)
+    }
+
+    func useQuickTargetLanguage(_ language: LanguageOption) {
+        guard !isRunning else { return }
+        guard !isTranscribeOnlyMode else { return }
+        guard language != sourceLanguage else {
+            showToast(AppText.sameLanguageTranslationUnavailable)
+            return
+        }
+
+        updateLanguagePair(source: sourceLanguage, target: language)
+    }
+
+    func swapQuickLanguagePair() {
+        guard !isRunning, !isTranscribeOnlyMode else { return }
+
+        updateLanguagePair(
+            source: targetLanguage,
+            target: fallbackTargetLanguage(excluding: targetLanguage, preferred: sourceLanguage)
+        )
+    }
+
+    func requestAPIKeySettings() {
+        requestedSettingsCategoryID = "apiKeys"
+    }
+
     func useAppleDefaultMode() {
         clearTranscribeOnlyNotice(resetActivation: true)
         selectedModel = .appleSystem
         openAITranscriptionModel = .off
         openAITranslationModel = .off
         geminiTranslationModel = .off
+        applyAppleVoiceOutputDefault()
     }
 
     func useGPTRealtimeMode() {
         clearTranscribeOnlyNotice(resetActivation: true)
         selectedModel = .appleSystem
         geminiTranslationModel = .off
+        openAITranscriptionModel = .off
         isTranscriptLintEnabled = false
-        if !openAITranscriptionModel.isEnabled {
-            openAITranscriptionModel = .gptRealtimeWhisper
-        }
-        if !openAITranslationModel.isEnabled {
+        if openAITranslationModel != .gptRealtimeTranslate {
             openAITranslationModel = .gptRealtimeTranslate
         }
+        applyProviderVoiceOutputDefault()
+        restoreFloatingCaptionDisplayModeAfterTranscribeOnly()
         usePreferredLanguageForOpenAIOutput()
     }
 
@@ -753,8 +828,9 @@ final class TranslationSessionStore {
         openAITranscriptionModel = .off
         openAITranslationModel = .off
         if !geminiTranslationModel.isEnabled {
-            geminiTranslationModel = .gemini35Flash
+            geminiTranslationModel = .gemini35LiveTranslate
         }
+        applyProviderVoiceOutputDefault()
         restoreFloatingCaptionDisplayModeAfterTranscribeOnly()
     }
 
@@ -772,6 +848,11 @@ final class TranslationSessionStore {
         if selectedModel == .appleSpeechOnly {
             selectedModel = .appleSystem
         }
+        if openAITranscriptionModel.isEnabled || openAITranslationModel.isEnabled {
+            openAITranscriptionModel = .off
+            openAITranslationModel = .gptRealtimeTranslate
+            applyProviderVoiceOutputDefault()
+        }
         restoreFloatingCaptionDisplayModeAfterTranscribeOnly()
     }
 
@@ -780,23 +861,78 @@ final class TranslationSessionStore {
             floatingCaptionDisplayModeBeforeTranscribeOnly = floatingCaptionDisplayMode
         }
         floatingCaptionDisplayMode = .original
-        openAITranscriptionModel = .off
-        openAITranslationModel = .off
-        geminiTranslationModel = .off
+        if openAITranslationModel.isEnabled {
+            openAITranslationModel = .off
+        }
+        if openAITranscriptionModel.isEnabled {
+            openAITranscriptionModel = .off
+        }
+        if geminiTranslationModel.isEnabled {
+            geminiTranslationModel = .off
+        }
         isDubbingEnabled = false
         selectedModel = .appleSpeechOnly
         clearTranscribeOnlyNotice(resetActivation: true)
     }
 
     private func syncLiveOutputModeWithLanguagePair() {
-        guard !isRestoringSelectedSettings, !isRunning, !isUsingOpenAIRealtime, !isUsingGeminiTranslation else { return }
+        guard !isRestoringSelectedSettings, !isUpdatingLanguagePair, !isRunning else { return }
 
         if selectedModel == .appleSpeechOnly {
             if targetLanguage != sourceLanguage {
                 targetLanguage = sourceLanguage
             }
-        } else if sourceLanguage == targetLanguage {
+            return
+        }
+
+        guard !isUsingProviderRealtimeTranslation else { return }
+
+        if sourceLanguage == targetLanguage {
             useTranscribeOnlyMode()
+            return
+        }
+    }
+
+    private func updateLanguagePair(source: LanguageOption, target: LanguageOption) {
+        isUpdatingLanguagePair = true
+        sourceLanguage = source
+        targetLanguage = target
+        isUpdatingLanguagePair = false
+        syncLiveOutputModeWithLanguagePair()
+    }
+
+    private func fallbackTargetLanguage(excluding excludedLanguage: LanguageOption, preferred: LanguageOption) -> LanguageOption {
+        if preferred != excludedLanguage {
+            return preferred
+        }
+        return LanguageOption.supported.first { $0 != excludedLanguage } ?? preferred
+    }
+
+    private func applyAppleVoiceOutputDefault() {
+        appleVoiceOutputEnabled = false
+        applyVoiceOutputDefault(false)
+    }
+
+    private func applyProviderVoiceOutputDefault() {
+        providerVoiceOutputEnabled = true
+        applyVoiceOutputDefault(true)
+    }
+
+    private func applyRestoredVoiceOutputPreference() {
+        applyVoiceOutputDefault(isUsingProviderRealtimeTranslation ? providerVoiceOutputEnabled : appleVoiceOutputEnabled)
+    }
+
+    private func applyVoiceOutputDefault(_ isEnabled: Bool) {
+        isApplyingVoiceOutputDefault = true
+        isDubbingEnabled = isEnabled
+        isApplyingVoiceOutputDefault = false
+    }
+
+    private func rememberVoiceOutputPreference(_ isEnabled: Bool) {
+        if isUsingProviderRealtimeTranslation {
+            providerVoiceOutputEnabled = isEnabled
+        } else if !isTranscribeOnlyMode {
+            appleVoiceOutputEnabled = isEnabled
         }
     }
 
@@ -1128,8 +1264,16 @@ final class TranslationSessionStore {
         transcriber.delegate = self
         openAITranscriber = OpenAIRealtimeTranscriber()
         openAITranscriber.delegate = self
+        geminiLiveTranslator = GeminiLiveTranslationService()
+        geminiLiveTranslator.delegate = self
 
-        if openAITranslationModel.usesRealtimeAudioTranslation {
+        if isTranscribeOnlyMode, openAITranscriptionModel.isEnabled {
+            try await openAITranscriber.start(language: sourceLanguage, model: openAITranscriptionModel)
+        } else if isTranscribeOnlyMode {
+            try await transcriber.start(languages: await appleSpeechLanguagesForCurrentMode())
+        } else if geminiTranslationModel.isEnabled {
+            try await geminiLiveTranslator.start(targetLanguage: targetLanguage, model: geminiTranslationModel)
+        } else if openAITranslationModel.usesRealtimeAudioTranslation {
             try await openAITranscriber.startRealtimeTranslationOnly(
                 language: targetLanguage,
                 model: openAITranslationModel
@@ -1163,13 +1307,16 @@ final class TranslationSessionStore {
     private func stopCaptioners() {
         transcriber.delegate = nil
         openAITranscriber.delegate = nil
+        geminiLiveTranslator.delegate = nil
         transcriber.stop()
         openAITranscriber.stop()
+        geminiLiveTranslator.stop()
     }
 
     private func setCaptionersPaused(_ isPaused: Bool) {
         transcriber.setPaused(isPaused)
         openAITranscriber.setPaused(isPaused)
+        geminiLiveTranslator.setPaused(isPaused)
     }
 
     private func resetLiveSessionState(clearsVisibleLines: Bool) {
@@ -1208,8 +1355,14 @@ final class TranslationSessionStore {
         pendingTranslationSourceText = ""
         latestTranslationRequest = nil
         translationBurstStartedAt = Date.distantPast
+        if !clearsVisibleLines {
+            clearPendingTranslationPlaceholders(message: AppText.translationCancelled)
+        }
         resetTranslationCache()
+        realtimeTranslationSourceText = ""
         realtimeTranslationOnlyText = ""
+        geminiLiveInputTranscriptText = ""
+        geminiLiveOutputTranscriptText = ""
         activeAutosaveSourceText = ""
         activeAutosaveTranslatedText = ""
         stopSpeaking()
@@ -1223,6 +1376,29 @@ final class TranslationSessionStore {
 
         if clearsVisibleLines {
             lines.removeAll()
+        }
+    }
+
+    private func clearPendingTranslationPlaceholders(message: String) {
+        for index in lines.indices where lines[index].translatedText == AppText.translating {
+            let line = lines[index]
+            lines[index] = CaptionLine(
+                id: line.id,
+                sourceText: line.sourceText,
+                translatedText: message,
+                translatedSourceText: line.sourceText,
+                createdAt: line.createdAt,
+                isFinal: line.isFinal,
+                revision: line.revision + 1,
+                usesLongSessionDisplay: usesLongSessionMode
+            )
+        }
+
+        if floatingDisplayTranslationText == AppText.translating {
+            floatingDisplayTranslationText = message
+        }
+        if floatingQueuedTranslationText == AppText.translating {
+            floatingQueuedTranslationText = message
         }
     }
 
@@ -1291,13 +1467,23 @@ final class TranslationSessionStore {
         if let modelID = defaults.string(forKey: SettingsKey.openAITranslationModelID),
            let model = OpenAIRealtimeTranslationModel(rawValue: modelID) {
             openAITranslationModel = model
+        } else if defaults.string(forKey: SettingsKey.openAITranslationModelID) == "gpt-realtime-translate-only" {
+            openAITranslationModel = .gptRealtimeTranslate
         }
         if let modelID = defaults.string(forKey: SettingsKey.geminiTranslationModelID),
            let model = GeminiTranslationModel(rawValue: modelID) {
             geminiTranslationModel = model
         }
-        if defaults.object(forKey: SettingsKey.isDubbingEnabled) != nil {
-            isDubbingEnabled = defaults.bool(forKey: SettingsKey.isDubbingEnabled)
+        if defaults.object(forKey: SettingsKey.appleVoiceOutputEnabled) != nil {
+            appleVoiceOutputEnabled = defaults.bool(forKey: SettingsKey.appleVoiceOutputEnabled)
+        }
+        if defaults.object(forKey: SettingsKey.providerVoiceOutputEnabled) != nil {
+            providerVoiceOutputEnabled = defaults.bool(forKey: SettingsKey.providerVoiceOutputEnabled)
+        } else if defaults.object(forKey: SettingsKey.isDubbingEnabled) != nil {
+            providerVoiceOutputEnabled = defaults.bool(forKey: SettingsKey.isDubbingEnabled)
+        }
+        if defaults.object(forKey: SettingsKey.translatedVoiceVolume) != nil {
+            translatedVoiceVolume = Self.clampedVolume(defaults.double(forKey: SettingsKey.translatedVoiceVolume))
         }
         if defaults.object(forKey: SettingsKey.isTranscriptLintEnabled) != nil {
             isTranscriptLintEnabled = defaults.bool(forKey: SettingsKey.isTranscriptLintEnabled)
@@ -1342,6 +1528,11 @@ final class TranslationSessionStore {
         isAppleSourceAutoDetectionEnabled = isAppleSourceAutoDetectionAvailable
             && defaults.bool(forKey: SettingsKey.isAppleSourceAutoDetectionEnabled)
         refreshMicrophoneInputDevices()
+        if openAITranscriptionModel.isEnabled || openAITranslationModel.isEnabled {
+            openAITranscriptionModel = .off
+            openAITranslationModel = .gptRealtimeTranslate
+        }
+        applyRestoredVoiceOutputPreference()
     }
 
     private func persistSelectedSettings() {
@@ -1355,6 +1546,9 @@ final class TranslationSessionStore {
         defaults.set(openAITranslationModel.id, forKey: SettingsKey.openAITranslationModelID)
         defaults.set(geminiTranslationModel.id, forKey: SettingsKey.geminiTranslationModelID)
         defaults.set(isDubbingEnabled, forKey: SettingsKey.isDubbingEnabled)
+        defaults.set(appleVoiceOutputEnabled, forKey: SettingsKey.appleVoiceOutputEnabled)
+        defaults.set(providerVoiceOutputEnabled, forKey: SettingsKey.providerVoiceOutputEnabled)
+        defaults.set(translatedVoiceVolume, forKey: SettingsKey.translatedVoiceVolume)
         defaults.set(isTranscriptLintEnabled, forKey: SettingsKey.isTranscriptLintEnabled)
         defaults.set(floatingCaptionDisplayMode.id, forKey: SettingsKey.floatingCaptionDisplayMode)
         defaults.set(floatingCaptionTextSize.id, forKey: SettingsKey.floatingCaptionTextSize)
@@ -2654,7 +2848,8 @@ final class TranslationSessionStore {
     private func translateTranscript(
         _ text: String,
         source: LanguageOption,
-        target: LanguageOption
+        target: LanguageOption,
+        progress: (String) -> Void = { _ in }
     ) async throws -> String {
         let paragraphs = paragraphParts(from: text)
 
@@ -2662,10 +2857,7 @@ final class TranslationSessionStore {
 
         var translatedParagraphs: [String] = []
         for paragraph in paragraphs {
-            let segments = paragraph
-                .split(separator: "\n", omittingEmptySubsequences: true)
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
+            let segments = translationSegments(from: paragraph)
             var translatedSegments: [String] = []
 
             for segment in segments {
@@ -2678,14 +2870,7 @@ final class TranslationSessionStore {
                 }
 
                 let translatedSegment: String
-                if geminiTranslationModel.isEnabled {
-                    translatedSegment = try await geminiTranslator.translate(
-                        segment,
-                        source: source,
-                        target: target,
-                        model: geminiTranslationModel
-                    )
-                } else if openAITranslationModel.isEnabled && !openAITranslationModel.usesRealtimeAudioTranslation {
+                if openAITranslationModel.isEnabled && !openAITranslationModel.usesRealtimeAudioTranslation {
                     translatedSegment = try await openAITranslator.translate(
                         segment,
                         source: source,
@@ -2704,6 +2889,13 @@ final class TranslationSessionStore {
                 let organizedSegment = organizeTranscript(translatedSegment, language: target)
                 cacheTranslatedSegment(organizedSegment, forKey: cacheKey)
                 translatedSegments.append(organizedSegment)
+
+                let partialText = (translatedParagraphs + [translatedSegments.joined(separator: "\n")])
+                    .joined(separator: "\n\n")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !partialText.isEmpty {
+                    progress(partialText)
+                }
             }
 
             translatedParagraphs.append(translatedSegments.joined(separator: "\n"))
@@ -2712,14 +2904,48 @@ final class TranslationSessionStore {
         return translatedParagraphs.joined(separator: "\n\n")
     }
 
+    private func translationSegments(from paragraph: String) -> [String] {
+        paragraph
+            .split(separator: "\n", omittingEmptySubsequences: true)
+            .flatMap { splitTranslationSegment(String($0)) }
+    }
+
+    private func splitTranslationSegment(_ text: String) -> [String] {
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else { return [] }
+        guard trimmedText.utf16.count > 240 else { return [trimmedText] }
+
+        var segments: [String] = []
+        var current = ""
+
+        for character in trimmedText {
+            current.append(character)
+            let shouldBreakAtSentence = ".!?。！？".contains(character)
+                && current.utf16.count >= 80
+            let shouldBreakAtWhitespace = character.isWhitespace
+                && current.utf16.count >= 240
+
+            if shouldBreakAtSentence || shouldBreakAtWhitespace {
+                let segment = current.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !segment.isEmpty {
+                    segments.append(segment)
+                }
+                current = ""
+            }
+        }
+
+        let tail = current.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !tail.isEmpty {
+            segments.append(tail)
+        }
+        return segments
+    }
+
     private func translationCacheKey(segment: String, source: LanguageOption, target: LanguageOption) -> String {
         "\(source.id)\t\(target.id)\t\(translationEngineCacheID)\t\(segment)"
     }
 
     private var translationEngineCacheID: String {
-        if geminiTranslationModel.isEnabled {
-            return "gemini:\(geminiTranslationModel.id)"
-        }
         if openAITranslationModel.isEnabled {
             return "openai:\(openAITranslationModel.id)"
         }
@@ -2748,26 +2974,128 @@ final class TranslationSessionStore {
         translationCacheKeyOrder.removeAll()
     }
 
+    private func updateRealtimeTranslationSourceTranscript(_ text: String) {
+        guard isRunning, !isPaused else { return }
+        guard isUsingOpenAIRealtimeTranslation else { return }
+
+        guard text.rangeOfCharacter(from: .whitespacesAndNewlines.inverted) != nil
+            || !realtimeTranslationSourceText.isEmpty else { return }
+
+        realtimeTranslationSourceText = accumulatedRealtimeText(
+            current: realtimeTranslationSourceText,
+            next: text
+        )
+        refreshOpenAIRealtimeTranslationLine()
+    }
+
     private func appendRealtimeTranslationOnly(_ text: String) {
         guard isRunning, !isPaused else { return }
+        guard isUsingOpenAIRealtimeTranslation else { return }
 
         guard text.rangeOfCharacter(from: .whitespacesAndNewlines.inverted) != nil
             || !realtimeTranslationOnlyText.isEmpty else { return }
 
-        if text.hasPrefix(realtimeTranslationOnlyText) {
-            realtimeTranslationOnlyText = text
-        } else if !realtimeTranslationOnlyText.hasSuffix(text) {
-            realtimeTranslationOnlyText += text
-        }
+        realtimeTranslationOnlyText = accumulatedRealtimeText(
+            current: realtimeTranslationOnlyText,
+            next: text
+        )
+        refreshOpenAIRealtimeTranslationLine()
+    }
 
+    private func refreshOpenAIRealtimeTranslationLine() {
+        let inputText = realtimeTranslationSourceText.trimmingCharacters(in: .whitespacesAndNewlines)
         let translatedText = realtimeTranslationOnlyText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !translatedText.isEmpty else { return }
+        guard !inputText.isEmpty || !translatedText.isEmpty else { return }
 
-        lastRecognizedText = translatedText
+        lastRecognizedText = inputText.isEmpty ? translatedText : inputText
         lastRecognitionAt = Date()
         transcriptCleanupTask?.cancel()
 
-        let sourceText = AppText.openAIRealtimeTranslationOnlySource
+        let sourceText = inputText.isEmpty ? AppText.openAIRealtimeTranslationOnlySource : inputText
+        let visibleTranslatedText = translatedText.isEmpty ? AppText.translating : translatedText
+
+        if let currentLineID,
+           let index = lines.firstIndex(where: { $0.id == currentLineID }) {
+            let existingLine = lines[index]
+            lines[index] = CaptionLine(
+                id: existingLine.id,
+                sourceText: sourceText,
+                translatedText: visibleTranslatedText,
+                translatedSourceText: sourceText,
+                createdAt: existingLine.createdAt,
+                isFinal: false,
+                revision: existingLine.revision + 1,
+                usesLongSessionDisplay: usesLongSessionMode
+            )
+        } else {
+            let line = CaptionLine(
+                sourceText: sourceText,
+                translatedText: visibleTranslatedText,
+                translatedSourceText: sourceText,
+                createdAt: Date(),
+                isFinal: false,
+                revision: 1,
+                usesLongSessionDisplay: usesLongSessionMode
+            )
+            currentLineID = line.id
+            lines.append(line)
+        }
+
+        if !inputText.isEmpty {
+            presentFloatingSourceText(inputText)
+        }
+        if !translatedText.isEmpty {
+            stageTranscriptForSave(sourceText, translatedText: translatedText)
+            updateFloatingTranslationPresentation(translatedText, sourceText: sourceText)
+            speakTranslatedDeltaIfNeeded(translatedText)
+        }
+    }
+
+    private func updateGeminiLiveInputTranscript(_ text: String) {
+        guard isRunning, !isPaused else { return }
+        guard text.rangeOfCharacter(from: .whitespacesAndNewlines.inverted) != nil
+            || !geminiLiveInputTranscriptText.isEmpty else { return }
+
+        geminiLiveInputTranscriptText = accumulatedRealtimeText(
+            current: geminiLiveInputTranscriptText,
+            next: text
+        )
+        refreshGeminiLiveCaptionLine()
+    }
+
+    private func updateGeminiLiveOutputTranscript(_ text: String) {
+        guard isRunning, !isPaused else { return }
+        guard text.rangeOfCharacter(from: .whitespacesAndNewlines.inverted) != nil
+            || !geminiLiveOutputTranscriptText.isEmpty else { return }
+
+        geminiLiveOutputTranscriptText = accumulatedRealtimeText(
+            current: geminiLiveOutputTranscriptText,
+            next: text
+        )
+        refreshGeminiLiveCaptionLine()
+    }
+
+    private func accumulatedRealtimeText(current: String, next: String) -> String {
+        if next.hasPrefix(current) {
+            return next
+        }
+        if current.hasSuffix(next) {
+            return current
+        }
+        return current + next
+    }
+
+    private func refreshGeminiLiveCaptionLine() {
+        let inputText = geminiLiveInputTranscriptText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let outputText = geminiLiveOutputTranscriptText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !inputText.isEmpty || !outputText.isEmpty else { return }
+
+        lastRecognizedText = inputText.isEmpty ? outputText : inputText
+        lastRecognitionAt = Date()
+        transcriptCleanupTask?.cancel()
+
+        let sourceText = inputText.isEmpty ? AppText.geminiLiveTranslationSource : inputText
+        let translatedText = outputText.isEmpty ? AppText.translating : outputText
 
         if let currentLineID,
            let index = lines.firstIndex(where: { $0.id == currentLineID }) {
@@ -2782,6 +3110,7 @@ final class TranslationSessionStore {
                 revision: existingLine.revision + 1,
                 usesLongSessionDisplay: usesLongSessionMode
             )
+            sourceLanguageByLineID[existingLine.id] = sourceLanguage
         } else {
             let line = CaptionLine(
                 sourceText: sourceText,
@@ -2793,19 +3122,23 @@ final class TranslationSessionStore {
                 usesLongSessionDisplay: usesLongSessionMode
             )
             currentLineID = line.id
+            sourceLanguageByLineID[line.id] = sourceLanguage
             lines.append(line)
         }
 
-        stageTranscriptForSave(sourceText, translatedText: translatedText)
-        let floatingTranslatedText = isUsingOpenAIRealtimeTranslation
-            ? text.trimmingCharacters(in: .whitespacesAndNewlines)
-            : translatedText
-        updateFloatingTranslationPresentation(floatingTranslatedText, sourceText: sourceText)
-        speakTranslatedDeltaIfNeeded(translatedText)
+        if !inputText.isEmpty {
+            stageTranscriptForSave(inputText, translatedText: outputText)
+            presentFloatingSourceText(inputText)
+        }
+        if !outputText.isEmpty {
+            updateFloatingTranslationPresentation(outputText, sourceText: sourceText)
+            speakTranslatedDeltaIfNeeded(outputText)
+        }
     }
 
     private func requestTranslation(for line: CaptionLine, source: LanguageOption, target: LanguageOption) {
         guard !openAITranslationModel.usesRealtimeAudioTranslation else { return }
+        guard !isUsingGeminiTranslation else { return }
 
         guard !isTranscribeOnlyMode else {
             showTranscribeOnlyNoticeForCurrentActivation()
@@ -2863,7 +3196,15 @@ final class TranslationSessionStore {
                 let translatedText = try await translateTranscript(
                     request.translationSourceText,
                     source: request.source,
-                    target: request.target
+                    target: request.target,
+                    progress: { [weak self] partialText in
+                        self?.updateTranslation(
+                            partialText,
+                            for: request.line,
+                            matching: request.sourceText,
+                            finalizesRequest: false
+                        )
+                    }
                 )
                 try Task.checkCancellation()
                 updateTranslation(translatedText, for: request.line, matching: request.sourceText)
@@ -2905,24 +3246,52 @@ final class TranslationSessionStore {
         return burstAge >= 0.45 ? 0 : 70
     }
 
-    private func updateTranslation(_ translatedText: String, for line: CaptionLine, matching sourceText: String) {
+    nonisolated static func isCompatibleLiveSource(current: String, requested: String) -> Bool {
+        let currentText = current.trimmingCharacters(in: .whitespacesAndNewlines)
+        let requestedText = requested.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !requestedText.isEmpty else { return currentText.isEmpty }
+        if currentText == requestedText || currentText.hasPrefix(requestedText) {
+            return true
+        }
+
+        let normalizedCurrentText = currentText.replacingOccurrences(
+            of: #"\s+"#,
+            with: " ",
+            options: .regularExpression
+        )
+        let normalizedRequestedText = requestedText.replacingOccurrences(
+            of: #"\s+"#,
+            with: " ",
+            options: .regularExpression
+        )
+        return normalizedCurrentText == normalizedRequestedText
+            || normalizedCurrentText.hasPrefix(normalizedRequestedText)
+    }
+
+    private func updateTranslation(
+        _ translatedText: String,
+        for line: CaptionLine,
+        matching sourceText: String,
+        finalizesRequest: Bool = true
+    ) {
         guard let index = lines.firstIndex(where: { $0.id == line.id }) else { return }
-        guard lines[index].sourceText == sourceText else {
-            if pendingTranslationSourceText == sourceText {
+        let currentSourceText = lines[index].sourceText
+        guard Self.isCompatibleLiveSource(current: currentSourceText, requested: sourceText) else {
+            if finalizesRequest, pendingTranslationSourceText == sourceText {
                 pendingTranslationSourceText = ""
             }
             return
         }
         let organizedTranslatedText = organizeTranscript(translatedText, language: targetLanguage)
         let floatingTranslatedText = translatedText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if pendingTranslationSourceText == sourceText {
+        if finalizesRequest, pendingTranslationSourceText == sourceText {
             pendingTranslationSourceText = ""
         }
-        stageTranscriptForSave(sourceText, translatedText: organizedTranslatedText)
+        stageTranscriptForSave(currentSourceText, translatedText: organizedTranslatedText)
 
         lines[index] = CaptionLine(
             id: line.id,
-            sourceText: sourceText,
+            sourceText: currentSourceText,
             translatedText: organizedTranslatedText,
             translatedSourceText: sourceText,
             createdAt: line.createdAt,
@@ -2940,7 +3309,30 @@ final class TranslationSessionStore {
             statusMessage = message
             return
         }
-        guard lines[index].sourceText == sourceText else {
+        let currentSourceText = lines[index].sourceText
+        guard Self.isCompatibleLiveSource(current: currentSourceText, requested: sourceText) else {
+            if lines[index].translatedText == AppText.translating {
+                let line = lines[index]
+                lines[index] = CaptionLine(
+                    id: line.id,
+                    sourceText: line.sourceText,
+                    translatedText: message,
+                    translatedSourceText: line.sourceText,
+                    createdAt: line.createdAt,
+                    isFinal: line.isFinal,
+                    revision: line.revision + 1,
+                    usesLongSessionDisplay: usesLongSessionMode
+                )
+            }
+            statusMessage = message
+            return
+        }
+
+        let existingTranslation = lines[index].translatedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !existingTranslation.isEmpty, existingTranslation != AppText.translating {
+            if pendingTranslationSourceText == sourceText {
+                pendingTranslationSourceText = ""
+            }
             statusMessage = message
             return
         }
@@ -2951,7 +3343,7 @@ final class TranslationSessionStore {
 
         lines[index] = CaptionLine(
             id: line.id,
-            sourceText: sourceText,
+            sourceText: currentSourceText,
             translatedText: message,
             translatedSourceText: sourceText,
             createdAt: line.createdAt,
@@ -3052,7 +3444,7 @@ final class TranslationSessionStore {
 
     private func speakTranslatedDeltaIfNeeded(_ translatedText: String) {
         guard isRunning, isDubbingEnabled else { return }
-        guard !openAITranslationModel.usesRealtimeAudioTranslation else { return }
+        guard !isUsingProviderRealtimeTranslation else { return }
 
         let currentText = speechReadyText(translatedText)
         guard !currentText.isEmpty else { return }
@@ -3214,12 +3606,22 @@ final class TranslationSessionStore {
         speechOutput.stop()
         openAIRealtimeAudioOutput.stop()
     }
+
+    private func applyTranslatedVoiceVolume() {
+        speechOutput.setVolume(translatedVoiceVolume)
+        openAIRealtimeAudioOutput.setVolume(translatedVoiceVolume)
+    }
+
+    private static func clampedVolume(_ volume: Double, minimum: Double = 0) -> Double {
+        min(max(volume, minimum), 1)
+    }
 }
 
 extension TranslationSessionStore: SystemAudioCaptureDelegate {
     nonisolated func systemAudioCapture(_ capture: SystemAudioCapture, didOutput sampleBuffer: CMSampleBuffer) {
         transcriber.append(sampleBuffer)
         openAITranscriber.append(sampleBuffer)
+        geminiLiveTranslator.append(sampleBuffer)
     }
 
     nonisolated func systemAudioCapture(_ capture: SystemAudioCapture, didReceiveAudioSampleCount count: Int, level: Float?) {
@@ -3265,6 +3667,7 @@ extension TranslationSessionStore: MicrophoneAudioCaptureDelegate {
     nonisolated func microphoneAudioCapture(_ capture: MicrophoneAudioCapture, didOutput sampleBuffer: CMSampleBuffer) {
         transcriber.append(sampleBuffer)
         openAITranscriber.append(sampleBuffer)
+        geminiLiveTranslator.append(sampleBuffer)
     }
 
     nonisolated func microphoneAudioCapture(
@@ -3319,6 +3722,16 @@ extension TranslationSessionStore: LiveSpeechTranscriberDelegate {
 
     nonisolated func liveSpeechTranscriber(
         _ transcriber: LiveSpeechTranscriber,
+        didRecognizeSourceTranscript text: String,
+        confidence: Double
+    ) {
+        Task { @MainActor in
+            updateRealtimeTranslationSourceTranscript(text)
+        }
+    }
+
+    nonisolated func liveSpeechTranscriber(
+        _ transcriber: LiveSpeechTranscriber,
         didOutputAudioPCM16Base64 audio: String,
         sampleRate: Double
     ) {
@@ -3336,6 +3749,63 @@ extension TranslationSessionStore: LiveSpeechTranscriberDelegate {
     }
 
     nonisolated func liveSpeechTranscriber(_ transcriber: LiveSpeechTranscriber, didFail error: Error) {
+        Task { @MainActor in
+            statusMessage = error.localizedDescription
+        }
+    }
+}
+
+extension TranslationSessionStore: GeminiLiveTranslationServiceDelegate {
+    nonisolated func geminiLiveTranslationService(
+        _ service: GeminiLiveTranslationService,
+        didReceiveInputTranscript text: String,
+        languageCode _: String?
+    ) {
+        Task { @MainActor in
+            updateGeminiLiveInputTranscript(text)
+        }
+    }
+
+    nonisolated func geminiLiveTranslationService(
+        _ service: GeminiLiveTranslationService,
+        didReceiveOutputTranscript text: String,
+        languageCode _: String?
+    ) {
+        Task { @MainActor in
+            updateGeminiLiveOutputTranscript(text)
+        }
+    }
+
+    nonisolated func geminiLiveTranslationService(
+        _ service: GeminiLiveTranslationService,
+        didOutputAudioPCM16Base64 audio: String,
+        sampleRate: Double
+    ) {
+        Task { @MainActor in
+            guard isRunning,
+                  !isPaused,
+                  isDubbingEnabled,
+                  isUsingGeminiTranslation
+            else {
+                return
+            }
+
+            openAIRealtimeAudioOutput.playPCM16Base64(audio, sampleRate: sampleRate)
+        }
+    }
+
+    nonisolated func geminiLiveTranslationServiceDidInterruptOutputAudio(
+        _ service: GeminiLiveTranslationService
+    ) {
+        Task { @MainActor in
+            openAIRealtimeAudioOutput.stop()
+        }
+    }
+
+    nonisolated func geminiLiveTranslationService(
+        _ service: GeminiLiveTranslationService,
+        didFail error: Error
+    ) {
         Task { @MainActor in
             statusMessage = error.localizedDescription
         }

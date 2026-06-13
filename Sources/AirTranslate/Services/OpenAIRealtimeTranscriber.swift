@@ -28,8 +28,12 @@ final class OpenAIRealtimeTranscriber: @unchecked Sendable {
     private var outputMode = OutputMode.transcription
     private var isPaused = false
     private var pendingAudioSendCount = 0
-    private var realtimeTranscriptText = ""
-    private var lastRealtimeTranscriptPublishAt = Date.distantPast
+    private var realtimeTranscriptionText = ""
+    private var realtimeTranslationInputTranscriptText = ""
+    private var realtimeTranslationOutputTranscriptText = ""
+    private var lastRealtimeTranscriptionPublishAt = Date.distantPast
+    private var lastRealtimeTranslationInputPublishAt = Date.distantPast
+    private var lastRealtimeTranslationOutputPublishAt = Date.distantPast
 
     func start(language: LanguageOption, model: OpenAIRealtimeTranscriptionModel) async throws {
         try await start(
@@ -64,8 +68,7 @@ final class OpenAIRealtimeTranscriber: @unchecked Sendable {
 
         self.language = language
         self.outputMode = outputMode
-        realtimeTranscriptText = ""
-        lastRealtimeTranscriptPublishAt = .distantPast
+        resetRealtimeTranscriptBuffers()
         let url: URL
         switch outputMode {
         case .transcription:
@@ -132,8 +135,7 @@ final class OpenAIRealtimeTranscriber: @unchecked Sendable {
         stateLock.lock()
         pendingAudioSendCount = 0
         stateLock.unlock()
-        realtimeTranscriptText = ""
-        lastRealtimeTranscriptPublishAt = .distantPast
+        resetRealtimeTranscriptBuffers()
     }
 
     private func reserveAudioSendSlot() -> Bool {
@@ -179,6 +181,12 @@ final class OpenAIRealtimeTranscriber: @unchecked Sendable {
             let event = OpenAIRealtimeTranslationSessionUpdateEvent(
                 session: OpenAIRealtimeTranslationSession(
                     audio: OpenAIRealtimeTranslationAudio(
+                        input: OpenAIRealtimeTranslationAudioInput(
+                            transcription: OpenAIRealtimeTranslationInputTranscription(
+                                model: OpenAIRealtimeTranscriptionModel.gptRealtimeWhisper.rawValue
+                            ),
+                            noiseReduction: OpenAIRealtimeNoiseReduction(type: "near_field")
+                        ),
                         output: OpenAIRealtimeTranslationAudioOutput(
                             language: language.openAILanguageCode
                         )
@@ -225,26 +233,46 @@ final class OpenAIRealtimeTranscriber: @unchecked Sendable {
         else { return }
 
         switch event.type {
-        case "conversation.item.input_audio_transcription.delta":
+        case "conversation.item.input_audio_transcription.delta",
+            "session.input_audio_transcription.delta",
+            "session.input_transcription.delta",
+            "session.input_transcript.delta":
             guard let delta = event.delta, !delta.isEmpty else { return }
-            appendRealtimeTranscriptDelta(delta)
-        case "conversation.item.input_audio_transcription.completed":
+            switch outputMode {
+            case .transcription:
+                appendRealtimeTranscriptionDelta(delta)
+            case .translationOnly:
+                appendRealtimeTranslationInputDelta(delta)
+            }
+        case "conversation.item.input_audio_transcription.completed",
+            "session.input_audio_transcription.completed",
+            "session.input_transcription.completed",
+            "session.input_transcript.completed",
+            "session.input_transcript.done":
             guard let transcript = event.transcript, !transcript.isEmpty else { return }
-            publish(text: transcript)
-            realtimeTranscriptText = ""
-            lastRealtimeTranscriptPublishAt = .distantPast
+            switch outputMode {
+            case .transcription:
+                publishRecognizedTranscript(transcript)
+                realtimeTranscriptionText = ""
+                lastRealtimeTranscriptionPublishAt = .distantPast
+            case .translationOnly:
+                publishRealtimeTranslationInputTranscript(transcript)
+                realtimeTranslationInputTranscriptText = ""
+                lastRealtimeTranslationInputPublishAt = .distantPast
+            }
         case "session.output_transcript.delta":
             guard outputMode == .translationOnly,
                   let delta = event.delta,
                   !delta.isEmpty else { return }
-            appendRealtimeTranscriptDelta(delta)
-        case "session.output_transcript.done":
+            appendRealtimeTranslationOutputDelta(delta)
+        case "session.output_transcript.completed",
+            "session.output_transcript.done":
             guard outputMode == .translationOnly,
                   let transcript = event.transcript,
                   !transcript.isEmpty else { return }
-            publish(text: transcript)
-            realtimeTranscriptText = ""
-            lastRealtimeTranscriptPublishAt = .distantPast
+            publishTranslatedTranscript(transcript)
+            realtimeTranslationOutputTranscriptText = ""
+            lastRealtimeTranslationOutputPublishAt = .distantPast
         case "session.output_audio.delta":
             guard outputMode == .translationOnly,
                   let delta = event.delta,
@@ -261,33 +289,69 @@ final class OpenAIRealtimeTranscriber: @unchecked Sendable {
         }
     }
 
-    private func appendRealtimeTranscriptDelta(_ delta: String) {
-        realtimeTranscriptText += delta
+    private func appendRealtimeTranscriptionDelta(_ delta: String) {
+        realtimeTranscriptionText += delta
         let now = Date()
-        guard now.timeIntervalSince(lastRealtimeTranscriptPublishAt) >= Self.realtimeTranscriptPublishInterval else {
+        guard now.timeIntervalSince(lastRealtimeTranscriptionPublishAt) >= Self.realtimeTranscriptPublishInterval else {
             return
         }
-        lastRealtimeTranscriptPublishAt = now
-        publish(text: realtimeTranscriptText)
+        lastRealtimeTranscriptionPublishAt = now
+        publishRecognizedTranscript(realtimeTranscriptionText)
     }
 
-    private func publish(text: String) {
-        switch outputMode {
-        case .transcription:
-            delegate?.liveSpeechTranscriber(
-                proxyTranscriber,
-                didRecognize: text,
-                language: language,
-                confidence: 0.5
-            )
-        case .translationOnly:
-            delegate?.liveSpeechTranscriber(
-                proxyTranscriber,
-                didTranslate: text,
-                language: language,
-                confidence: 0.5
-            )
+    private func appendRealtimeTranslationInputDelta(_ delta: String) {
+        realtimeTranslationInputTranscriptText += delta
+        let now = Date()
+        guard now.timeIntervalSince(lastRealtimeTranslationInputPublishAt) >= Self.realtimeTranscriptPublishInterval else {
+            return
         }
+        lastRealtimeTranslationInputPublishAt = now
+        publishRealtimeTranslationInputTranscript(realtimeTranslationInputTranscriptText)
+    }
+
+    private func appendRealtimeTranslationOutputDelta(_ delta: String) {
+        realtimeTranslationOutputTranscriptText += delta
+        let now = Date()
+        guard now.timeIntervalSince(lastRealtimeTranslationOutputPublishAt) >= Self.realtimeTranscriptPublishInterval else {
+            return
+        }
+        lastRealtimeTranslationOutputPublishAt = now
+        publishTranslatedTranscript(realtimeTranslationOutputTranscriptText)
+    }
+
+    private func publishRecognizedTranscript(_ text: String) {
+        delegate?.liveSpeechTranscriber(
+            proxyTranscriber,
+            didRecognize: text,
+            language: language,
+            confidence: 0.5
+        )
+    }
+
+    private func publishRealtimeTranslationInputTranscript(_ text: String) {
+        delegate?.liveSpeechTranscriber(
+            proxyTranscriber,
+            didRecognizeSourceTranscript: text,
+            confidence: 0.5
+        )
+    }
+
+    private func publishTranslatedTranscript(_ text: String) {
+        delegate?.liveSpeechTranscriber(
+            proxyTranscriber,
+            didTranslate: text,
+            language: language,
+            confidence: 0.5
+        )
+    }
+
+    private func resetRealtimeTranscriptBuffers() {
+        realtimeTranscriptionText = ""
+        realtimeTranslationInputTranscriptText = ""
+        realtimeTranslationOutputTranscriptText = ""
+        lastRealtimeTranscriptionPublishAt = .distantPast
+        lastRealtimeTranslationInputPublishAt = .distantPast
+        lastRealtimeTranslationOutputPublishAt = .distantPast
     }
 
     private var proxyTranscriber: LiveSpeechTranscriber {
@@ -417,7 +481,22 @@ private struct OpenAIRealtimeTranslationSession: Encodable {
 }
 
 private struct OpenAIRealtimeTranslationAudio: Encodable {
+    let input: OpenAIRealtimeTranslationAudioInput
     let output: OpenAIRealtimeTranslationAudioOutput
+}
+
+private struct OpenAIRealtimeTranslationAudioInput: Encodable {
+    let transcription: OpenAIRealtimeTranslationInputTranscription
+    let noiseReduction: OpenAIRealtimeNoiseReduction
+
+    private enum CodingKeys: String, CodingKey {
+        case transcription
+        case noiseReduction = "noise_reduction"
+    }
+}
+
+private struct OpenAIRealtimeTranslationInputTranscription: Encodable {
+    let model: String
 }
 
 private struct OpenAIRealtimeTranslationAudioOutput: Encodable {

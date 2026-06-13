@@ -5,9 +5,18 @@ final class OpenAIRealtimeAudioOutput: @unchecked Sendable {
     private let queue = DispatchQueue(label: "AirTranslate.OpenAIRealtimeAudioOutput")
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
-    private let translatedVoiceGain: Float = 1.6
+    private let translatedSampleGain: Float = 1.6
+    private var outputVolume: Float = 1
     private var format: AVAudioFormat?
     private var isConfigured = false
+
+    func setVolume(_ volume: Double) {
+        queue.async { [weak self] in
+            guard let self else { return }
+            outputVolume = Float(min(max(volume, 0), 1))
+            player.volume = outputVolume
+        }
+    }
 
     func playPCM16Base64(_ audio: String, sampleRate: Double) {
         queue.async { [weak self, audio] in
@@ -43,7 +52,7 @@ final class OpenAIRealtimeAudioOutput: @unchecked Sendable {
             for index in 0..<sampleCount {
                 let sample = Int16(littleEndian: samples[index])
                 let normalizedSample = Float(sample) / Float(Int16.max)
-                channel[index] = min(1, max(-1, normalizedSample * translatedVoiceGain))
+                channel[index] = min(1, max(-1, normalizedSample * translatedSampleGain))
             }
         }
         buffer.frameLength = AVAudioFrameCount(sampleCount)
@@ -85,7 +94,7 @@ final class OpenAIRealtimeAudioOutput: @unchecked Sendable {
         }
 
         engine.connect(player, to: engine.mainMixerNode, format: format)
-        player.volume = 1
+        player.volume = outputVolume
         engine.mainMixerNode.outputVolume = 1
         engine.prepare()
         self.format = format

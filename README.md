@@ -31,7 +31,7 @@ AirTranslate captures audio playing on your Mac, turns it into a live transcript
 
 For a user-facing overview, setup guide, and download path, visit the [AirTranslate Guide Site](https://himomohi.github.io/AirTranslate/).
 
-The default workflow uses Apple frameworks. GPT-powered realtime models are optional and can be enabled from the app when you provide your own OpenAI API key.
+The default workflow uses Apple frameworks. GPT Realtime and Gemini Live Translate are optional API-backed modes and can be enabled from the app only after you provide the matching API key.
 
 ## Why AirTranslate
 
@@ -39,8 +39,8 @@ The default workflow uses Apple frameworks. GPT-powered realtime models are opti
 - **Readable live workspace:** source and translated text stay side by side.
 - **Floating captions:** keep subtitles above other apps while you watch or listen.
 - **Apple by default:** Apple Speech and Apple Translation remain the baseline path.
-- **Optional GPT mode:** OpenAI Realtime transcription and translation can be enabled only when needed.
-- **Keychain storage:** OpenAI API keys are entered by the user and stored in macOS Keychain.
+- **Optional API modes:** OpenAI Realtime Translation and Gemini Live Translate can be enabled only when needed.
+- **Keychain storage:** OpenAI and Gemini API keys are entered by the user and stored in macOS Keychain.
 - **Plain text history:** saved transcripts remain normal `.txt` files in Application Support.
 
 ![AirTranslate demo](docs/assets/airtranslate-readme-demo.gif)
@@ -54,10 +54,11 @@ The default workflow uses Apple frameworks. GPT-powered realtime models are opti
 - Apple Translation output
 - Transcribe Only mode with an original-only live workspace
 - Built-in, Bluetooth, and AirPods mic input support
-- GPT mode with OpenAI Realtime transcription and translation
-- Microphone input stability fixes for duplicate segments and noisy transitions
 - Apple basic-mode source-language auto-detect is temporarily disabled while language-switch handling is improved.
-- Realtime translation-only model path
+- GPT mode with OpenAI Realtime Translation
+- Gemini 3.5 Live Translate mode
+- Microphone input stability fixes for duplicate segments and noisy transitions
+- LIVE Translation mode for API-backed translated streams
 - One-click source/target language swap
 - Floating caption window
 - Transcript polish based on macOS spelling suggestions
@@ -72,23 +73,25 @@ AirTranslate separates the quick choice from the detailed setup.
 | Mode | Best For | Details |
 | --- | --- | --- |
 | Apple Mode | Local-first transcription and translation | Uses Apple Speech for transcription and Apple Translation for the selected language pair. Source-language auto-detect is temporarily disabled while language-switch handling is improved. |
-| GPT Mode | OpenAI Realtime transcription or translation | Enables GPT realtime models. If no API key is saved, AirTranslate opens the settings modal and focuses the API key field. |
+| GPT Mode | OpenAI Realtime live translation | Streams audio directly to OpenAI Realtime Translation. If no API key is saved, AirTranslate opens the settings modal and focuses the API key field. |
+| Gemini Live | Gemini 3.5 Live Translate | Streams audio directly to Gemini Live Translate and shows the returned input and translated transcripts. If no Gemini API key is saved, AirTranslate opens the settings modal and focuses the key field. |
 | Transcribe Only | Source captions without translation | Records source-language captions without running translation. |
-| Realtime Translation Only | Direct translated stream | Uses the realtime translation model path when you want the model to produce the translated stream directly. |
+| LIVE Translation | Direct translated stream | Uses the selected API provider's live translation model path when you want the model to produce the translated stream directly. |
 
-GPT model details, API key entry, transcript polish, and voice output are managed from the gear-shaped settings modal. The main sidebar only exposes the most important choices.
+GPT/Gemini model details, API key entry, transcript polish, and voice output are managed from the gear-shaped settings modal. The main sidebar only exposes the most important choices.
 
 ## Privacy And API Keys
 
 AirTranslate does not ship with a backend account system.
 
 - Apple Mode uses macOS frameworks and locally managed Apple language assets.
-- OpenAI calls happen only when GPT mode or OpenAI translation models are enabled.
-- OpenAI API keys are never hardcoded, committed, or included in release packages.
+- OpenAI calls happen only when GPT mode is enabled.
+- Gemini calls happen only when Gemini Live mode is enabled.
+- OpenAI and Gemini API keys are never hardcoded, committed, or included in release packages.
 - Keys are saved in macOS Keychain with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`.
 - Saved transcripts are plain text files on your Mac.
 
-Need an API key? Open the [OpenAI API key page](https://platform.openai.com/api-keys), create a key, then paste it into AirTranslate's settings modal.
+Need an API key? Open the [OpenAI API key page](https://platform.openai.com/api-keys) or [Google AI Studio API key page](https://aistudio.google.com/app/apikey), create a key, then paste it into AirTranslate's settings modal.
 
 ## Apple Translation Language Packs
 
@@ -121,7 +124,7 @@ Download the latest open-source build from [GitHub Releases](https://github.com/
 AirTranslate remains fully open-source under the Apache-2.0 License. The DMG is provided only as a convenient macOS installer, while all source code, build scripts, release materials, LICENSE, and NOTICE files remain available in this repository.
 
 - [Download AirTranslate.dmg](https://github.com/himomohi/AirTranslate/releases/latest/download/AirTranslate.dmg)
-- [Download AirTranslate-1.3.5.zip](https://github.com/himomohi/AirTranslate/releases/latest/download/AirTranslate-1.3.5.zip)
+- [Download AirTranslate-1.3.6.zip](https://github.com/himomohi/AirTranslate/releases/latest/download/AirTranslate-1.3.6.zip)
 - [Download AirTranslate.dmg.sha256](https://github.com/himomohi/AirTranslate/releases/latest/download/AirTranslate.dmg.sha256)
 - [View version history](Release/VERSION-HISTORY.md)
 
@@ -149,6 +152,7 @@ Developer ID signing and notarization are planned for a later distribution step.
 - A Mac that supports system-audio capture
 - Apple Speech and Apple Translation framework availability
 - Optional: an OpenAI API key for GPT mode
+- Optional: a Gemini API key for Gemini Live mode
 
 ## Build From Source
 
@@ -187,8 +191,8 @@ swift test
 
 1. Choose the source and target languages.
 2. Use the center swap button if you want to reverse the direction.
-3. Choose Apple Mode or GPT Mode.
-4. For GPT Mode, add your OpenAI API key in the settings modal if prompted.
+3. Choose Apple Mode, GPT Mode, or Gemini Live.
+4. For API-backed modes, add the matching OpenAI or Gemini API key in the settings modal if prompted.
 5. Press Start.
 6. Play meeting, lecture, video, interview, or stream audio on your Mac.
 7. Read the transcript and translation in the main workspace or floating caption window.
@@ -230,9 +234,9 @@ docs/assets/
 - `SystemAudioCapture`: captures Mac system audio through ScreenCaptureKit.
 - `LiveSpeechTranscriber`: streams speech recognition through Apple Speech.
 - `AppleTranslationService`: isolates Apple Translation work.
-- `OpenAIRealtimeTranscriber`: handles optional realtime transcription.
-- `OpenAITranslationService`: handles optional realtime translation requests.
-- `OpenAIAPIKeyStore`: saves the API key in macOS Keychain.
+- `OpenAIRealtimeTranscriber`: handles optional OpenAI realtime translation and transcript events.
+- `GeminiLiveTranslationService`: handles optional Gemini Live Translate websocket sessions.
+- `OpenAIAPIKeyStore` / `GeminiAPIKeyStore`: save API keys in macOS Keychain.
 - `TranslationSessionStore`: coordinates capture, transcript state, translation, saving, and playback.
 - `SidebarView`: language, mode, session, and settings entry points.
 - `CaptionBoardView`: live transcript, translation, controls, and audio meter.
@@ -243,4 +247,4 @@ docs/assets/
 
 AirTranslate is released under the [Apache License 2.0](LICENSE). Copyright attribution is provided in [NOTICE](NOTICE).
 
-AirTranslate is an independent open-source project and is not affiliated with Apple or OpenAI.
+AirTranslate is an independent open-source project and is not affiliated with Apple, OpenAI, or Google.
