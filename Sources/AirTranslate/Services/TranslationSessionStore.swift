@@ -15,6 +15,7 @@ private enum SettingsKey {
     static let floatingCaptionDisplayMode = "floatingCaptionDisplayMode"
     static let floatingCaptionTextSize = "floatingCaptionTextSize"
     static let floatingCaptionLineCount = "floatingCaptionLineCount"
+    static let keepsFloatingCaptionAboveOtherWindows = "keepsFloatingCaptionAboveOtherWindows"
     static let paragraphBreakSilenceInterval = "paragraphBreakSilenceInterval"
     static let savedTranscriptContentMode = "savedTranscriptContentMode"
     static let sessionDurationMode = "sessionDurationMode"
@@ -171,6 +172,9 @@ final class TranslationSessionStore {
         didSet { persistSelectedSettings() }
     }
     var floatingCaptionLineCount = FloatingCaptionLineCount.three {
+        didSet { persistSelectedSettings() }
+    }
+    var keepsFloatingCaptionAboveOtherWindows = true {
         didSet { persistSelectedSettings() }
     }
     var paragraphBreakSilenceInterval = 5.0 {
@@ -1241,6 +1245,9 @@ final class TranslationSessionStore {
            let lineCount = FloatingCaptionLineCount(rawValue: rawValue) {
             floatingCaptionLineCount = lineCount
         }
+        if defaults.object(forKey: SettingsKey.keepsFloatingCaptionAboveOtherWindows) != nil {
+            keepsFloatingCaptionAboveOtherWindows = defaults.bool(forKey: SettingsKey.keepsFloatingCaptionAboveOtherWindows)
+        }
         if defaults.object(forKey: SettingsKey.paragraphBreakSilenceInterval) != nil {
             paragraphBreakSilenceInterval = min(
                 max(defaults.double(forKey: SettingsKey.paragraphBreakSilenceInterval), 1),
@@ -1281,6 +1288,7 @@ final class TranslationSessionStore {
         defaults.set(floatingCaptionDisplayMode.id, forKey: SettingsKey.floatingCaptionDisplayMode)
         defaults.set(floatingCaptionTextSize.id, forKey: SettingsKey.floatingCaptionTextSize)
         defaults.set(floatingCaptionLineCount.id, forKey: SettingsKey.floatingCaptionLineCount)
+        defaults.set(keepsFloatingCaptionAboveOtherWindows, forKey: SettingsKey.keepsFloatingCaptionAboveOtherWindows)
         defaults.set(paragraphBreakSilenceInterval, forKey: SettingsKey.paragraphBreakSilenceInterval)
         defaults.set(savedTranscriptContentMode.id, forKey: SettingsKey.savedTranscriptContentMode)
         defaults.set(sessionDurationMode.id, forKey: SettingsKey.sessionDurationMode)

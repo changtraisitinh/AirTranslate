@@ -3,6 +3,7 @@ import SwiftUI
 
 struct FloatingWindowConfigurator: NSViewRepresentable {
     let preferredContentHeight: CGFloat
+    let keepsAboveOtherWindows: Bool
 
     func makeNSView(context _: Context) -> NSView {
         NSView()
@@ -13,7 +14,7 @@ struct FloatingWindowConfigurator: NSViewRepresentable {
             guard let window = view.window else { return }
 
             window.identifier = NSUserInterfaceItemIdentifier(AirTranslateWindowID.floatingCaptions)
-            window.level = .floating
+            window.level = keepsAboveOtherWindows ? .floating : .normal
             window.collectionBehavior.insert([.canJoinAllSpaces, .fullScreenAuxiliary])
             window.isMovableByWindowBackground = true
             window.titleVisibility = .hidden

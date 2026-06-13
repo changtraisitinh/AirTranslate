@@ -30,7 +30,7 @@ final class FloatingCaptionWindowController: NSObject, NSWindowDelegate {
 
         let panel = window ?? makeWindow(session: session)
         panel.contentView = NSHostingView(rootView: FloatingCaptionWindowView(session: session))
-        configure(panel)
+        configure(panel, session: session)
         if window == nil {
             positionForFirstOpen(panel)
         }
@@ -65,10 +65,10 @@ final class FloatingCaptionWindowController: NSObject, NSWindowDelegate {
         return panel
     }
 
-    private func configure(_ panel: NSPanel) {
+    private func configure(_ panel: NSPanel, session: TranslationSessionStore) {
         panel.identifier = NSUserInterfaceItemIdentifier(AirTranslateWindowID.floatingCaptions)
         panel.title = AppText.floatingCaptions
-        panel.level = .floating
+        panel.level = session.keepsFloatingCaptionAboveOtherWindows ? .floating : .normal
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false

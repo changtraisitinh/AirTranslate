@@ -22,7 +22,12 @@ struct FloatingCaptionWindowView: View {
             FloatingCaptionDragSurface()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .background(FloatingWindowConfigurator(preferredContentHeight: preferredHeight))
+        .background(
+            FloatingWindowConfigurator(
+                preferredContentHeight: preferredHeight,
+                keepsAboveOtherWindows: session.keepsFloatingCaptionAboveOtherWindows
+            )
+        )
     }
 
     @ViewBuilder

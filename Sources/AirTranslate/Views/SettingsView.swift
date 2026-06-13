@@ -2,137 +2,942 @@ import SwiftUI
 
 struct SettingsView: View {
     @Bindable var session: TranslationSessionStore
+    @SceneStorage("AirTranslate.SettingsView.selectedCategory") private var selectedCategoryID = SettingsCategory.floatingCaptions.rawValue
     @State private var openAIAPIKey = ""
+    @State private var apiKeyFeedback: String?
 
     var body: some View {
-        Form {
-            Section(AppText.openAIAPIKey) {
-                SecureField(AppText.openAIAPIKeyPlaceholder, text: $openAIAPIKey)
-                    .textFieldStyle(.roundedBorder)
+        HStack(spacing: 0) {
+            SettingsSidebar(selection: selectedCategory)
+                .frame(width: 260)
 
-                HStack {
-                    Text(session.hasOpenAIAPIKey ? AppText.openAIAPIKeyConfigured : AppText.openAIAPIKeyNotConfigured)
-                        .font(.caption)
-                        .foregroundStyle(session.hasOpenAIAPIKey ? .green : .secondary)
+            Divider()
+                .opacity(0.45)
 
-                    Spacer()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    SettingsPageHeader(category: selectedCategory.wrappedValue)
 
-                    Button(AppText.saveOpenAIAPIKey) {
-                        session.saveOpenAIAPIKey(openAIAPIKey)
-                        openAIAPIKey = ""
+                    selectedContent
+                }
+                .padding(.horizontal, 30)
+                .padding(.vertical, 44)
+            }
+            .scrollIndicators(.hidden)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(width: 900, height: 650)
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private var selectedCategory: Binding<SettingsCategory> {
+        Binding {
+            SettingsCategory(rawValue: selectedCategoryID) ?? .floatingCaptions
+        } set: { category in
+            selectedCategoryID = category.rawValue
+        }
+    }
+
+    @ViewBuilder
+    private var selectedContent: some View {
+        switch selectedCategory.wrappedValue {
+        case .general:
+            generalSettings
+        case .audio:
+            audioSettings
+        case .output:
+            outputSettings
+        case .transcript:
+            transcriptSettings
+        case .floatingCaptions:
+            floatingCaptionSettings
+        case .assets:
+            assetSettings
+        case .permissions:
+            permissionSettings
+        case .info:
+            infoSettings
+        }
+    }
+
+    private var generalSettings: some View {
+        SettingsGroup(title: SettingsCopy.modeSettings) {
+            if session.isRunning {
+                SettingsNoticeRow(text: SettingsCopy.captureRunningDisabledReason, systemImage: "pause.circle")
+            }
+
+            SettingsControlRow(
+                title: AppText.model,
+                detail: SettingsCopy.processingModeDetail,
+                systemImage: "switch.2"
+            ) {
+                Picker(AppText.model, selection: $session.selectedModel) {
+                    ForEach(IntelligenceModel.allCases) { model in
+                        Text(model.title).tag(model)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 220)
+                .disabled(session.isRunning)
+            }
+
+            SettingsValueRow(
+                title: AppText.languages,
+                detail: SettingsCopy.languagePairDetail,
+                systemImage: "globe",
+                value: "\(session.sourceLanguage.localizedTitle) -> \(session.targetLanguage.localizedTitle)"
+            )
+
+            SettingsToggleRow(
+                title: AppText.autoDetectInput,
+                detail: SettingsCopy.autoDetectDetail,
+                systemImage: "sparkles",
+                isOn: $session.isAppleSourceAutoDetectionEnabled
+            )
+            .disabled(true)
+        }
+    }
+
+    private var apiSettings: some View {
+        SettingsGroup(title: AppText.openAIAPIKey) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 10) {
+                    Image(systemName: "key.fill")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(session.hasOpenAIAPIKey ? Color.green : Color.secondary)
+                        .frame(width: 24)
+
+                    SecureField(AppText.openAIAPIKeyPlaceholder, text: $openAIAPIKey)
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityLabel(AppText.openAIAPIKey)
+
+                    Button {
+                        saveOpenAIAPIKey()
+                    } label: {
+                        Image(systemName: "checkmark.circle.fill")
                     }
                     .disabled(openAIAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .help(AppText.saveOpenAIAPIKey)
+                    .accessibilityLabel(AppText.saveOpenAIAPIKey)
 
-                    Button(AppText.removeOpenAIAPIKey) {
-                        session.removeOpenAIAPIKey()
-                        openAIAPIKey = ""
+                    Button {
+                        removeOpenAIAPIKey()
+                    } label: {
+                        Image(systemName: "trash")
                     }
                     .disabled(!session.hasOpenAIAPIKey)
+                    .help(AppText.removeOpenAIAPIKey)
+                    .accessibilityLabel(AppText.removeOpenAIAPIKey)
                 }
+
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(session.hasOpenAIAPIKey ? Color.green : Color.orange)
+                        .frame(width: 7, height: 7)
+
+                    Text(apiKeyFeedback ?? (session.hasOpenAIAPIKey ? AppText.openAIAPIKeyConfigured : AppText.openAIAPIKeyNotConfigured))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(apiKeyFeedback == nil && !session.hasOpenAIAPIKey ? Color.orange : statusColor)
+                }
+                .padding(.leading, 34)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(apiKeyFeedback ?? (session.hasOpenAIAPIKey ? AppText.openAIAPIKeyConfigured : AppText.openAIAPIKeyNotConfigured))
 
                 Text(AppText.openAIAPIKeyDescription)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, 34)
+            }
+            .padding(.horizontal, 4)
+            .padding(.vertical, 3)
+
+            SettingsControlRow(
+                title: AppText.gptTranscriptionModel,
+                detail: SettingsCopy.gptTranscriptionDetail,
+                systemImage: "waveform.badge.mic"
+            ) {
+                Picker(AppText.gptTranscriptionModel, selection: $session.openAITranscriptionModel) {
+                    ForEach(OpenAIRealtimeTranscriptionModel.allCases) { model in
+                        Text(model.title).tag(model)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 220)
+                .disabled(session.isRunning)
             }
 
-            Section(AppText.transcript) {
+            SettingsControlRow(
+                title: AppText.gptTranslationModel,
+                detail: SettingsCopy.gptTranslationDetail,
+                systemImage: "character.bubble"
+            ) {
+                Picker(AppText.gptTranslationModel, selection: $session.openAITranslationModel) {
+                    ForEach(OpenAIRealtimeTranslationModel.allCases) { model in
+                        Text(model.title).tag(model)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 220)
+                .disabled(session.isRunning)
+            }
+        }
+    }
+
+    private var audioSettings: some View {
+        SettingsGroup(title: AppText.audioInputSource) {
+            if session.isRunning {
+                SettingsNoticeRow(text: SettingsCopy.captureRunningDisabledReason, systemImage: "pause.circle")
+            }
+
+            SettingsControlRow(
+                title: AppText.audioInputSource,
+                detail: SettingsCopy.audioInputDetail,
+                systemImage: "waveform.badge.magnifyingglass"
+            ) {
+                Picker(AppText.audioInputSource, selection: $session.audioInputSource) {
+                    ForEach(AudioInputSource.allCases) { source in
+                        Text(source.title).tag(source)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 190)
+                .disabled(session.isRunning)
+            }
+
+            SettingsControlRow(
+                title: AppText.microphoneInputDevice,
+                detail: SettingsCopy.microphoneDeviceDetail,
+                systemImage: "mic"
+            ) {
+                Picker(AppText.microphoneInputDevice, selection: $session.selectedMicrophoneInputDeviceID) {
+                    ForEach(session.microphoneInputDevices) { device in
+                        Text(device.name).tag(device.id)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 220)
+                .disabled(session.isRunning || session.audioInputSource != .microphone)
+            }
+        }
+    }
+
+    private var outputSettings: some View {
+        SettingsGroup(title: AppText.output) {
+            if session.isRunning {
+                SettingsNoticeRow(text: SettingsCopy.captureRunningDisabledReason, systemImage: "pause.circle")
+            }
+
+            SettingsControlRow(
+                title: AppText.outputMode,
+                detail: SettingsCopy.outputModeDetail,
+                systemImage: "rectangle.split.2x1"
+            ) {
                 Picker(AppText.outputMode, selection: liveOutputModeBinding) {
                     ForEach(LiveOutputMode.allCases) { mode in
                         Text(mode.title).tag(mode)
                     }
                 }
                 .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 170)
                 .disabled(session.isRunning)
+            }
 
+            SettingsToggleRow(
+                title: AppText.voiceOutput,
+                detail: SettingsCopy.dubbingDetail,
+                systemImage: "speaker.wave.2",
+                isOn: $session.isDubbingEnabled
+            )
+        }
+    }
+
+    private var transcriptSettings: some View {
+        SettingsGroup(title: AppText.transcript) {
+            if session.isRunning {
+                SettingsNoticeRow(text: SettingsCopy.captureRunningDisabledReason, systemImage: "pause.circle")
+            }
+
+            if session.isUsingOpenAIRealtime {
+                SettingsNoticeRow(text: SettingsCopy.openAIRealtimeDisabledReason, systemImage: "info.circle")
+            }
+
+            SettingsControlRow(
+                title: AppText.sessionLength,
+                detail: session.sessionDurationMode.detail,
+                systemImage: "timer"
+            ) {
                 Picker(AppText.sessionLength, selection: $session.sessionDurationMode) {
                     ForEach(SessionDurationMode.allCases) { mode in
                         Text(mode.title).tag(mode)
                     }
                 }
-                .pickerStyle(.radioGroup)
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 190)
                 .disabled(session.isRunning)
+            }
 
-                Text(session.sessionDurationMode.detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
+            SettingsControlRow(
+                title: AppText.paragraphBreakSilenceInterval,
+                detail: AppText.paragraphBreakSilenceDescription,
+                systemImage: "text.append"
+            ) {
                 Stepper(
+                    AppText.seconds(session.paragraphBreakSilenceInterval),
                     value: $session.paragraphBreakSilenceInterval,
                     in: 1...15,
                     step: 0.5
-                ) {
-                    HStack {
-                        Text(AppText.paragraphBreakSilenceInterval)
-                        Spacer()
-                        Text(AppText.seconds(session.paragraphBreakSilenceInterval))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Text(AppText.paragraphBreakSilenceDescription)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                )
+                .frame(width: 104)
             }
 
-            Section(AppText.floatingCaptions) {
-                Picker(AppText.floatingDisplay, selection: $session.floatingCaptionDisplayMode) {
-                    ForEach(session.availableFloatingCaptionDisplayModes) { mode in
+            SettingsToggleRow(
+                title: AppText.transcriptLint,
+                detail: AppText.transcriptLintDescription,
+                systemImage: "wand.and.sparkles",
+                isOn: $session.isTranscriptLintEnabled
+            )
+            .disabled(session.isUsingOpenAIRealtime)
+
+            SettingsControlRow(
+                title: AppText.savedTranscriptContent,
+                detail: AppText.autoSaveDescription,
+                systemImage: "archivebox"
+            ) {
+                Picker(AppText.savedTranscriptContent, selection: $session.savedTranscriptContentMode) {
+                    ForEach(SavedTranscriptContentMode.allCases) { mode in
                         Text(mode.title).tag(mode)
                     }
                 }
-
-                Picker(AppText.floatingTextSize, selection: $session.floatingCaptionTextSize) {
-                    ForEach(FloatingCaptionTextSize.allCases) { size in
-                        Text(size.title).tag(size)
-                    }
-                }
-
-                Picker(AppText.floatingLineCount, selection: $session.floatingCaptionLineCount) {
-                    ForEach(FloatingCaptionLineCount.allCases) { lineCount in
-                        Text(lineCount.title).tag(lineCount)
-                    }
-                }
-
-                Text(AppText.floatingDisplayDescription)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section(AppText.requiredAssets) {
-                SettingsAssetAvailabilityRow(
-                    title: AppText.speechLanguagePack,
-                    availability: session.modelAvailability(for: .appleSpeechOnly)
-                ) {
-                    session.downloadModelAssets(for: .appleSpeechOnly)
-                }
-
-                SettingsAssetAvailabilityRow(
-                    title: AppText.translationLanguagePack,
-                    availability: session.modelAvailability(for: .appleOnDevice)
-                ) {
-                    session.downloadModelAssets(for: .appleOnDevice)
-                }
-            }
-
-            Section(AppText.permissions) {
-                Text(AppText.permissionsHelp)
-                    .foregroundStyle(.secondary)
+                .labelsHidden()
+                .frame(width: 170)
             }
         }
-        .formStyle(.grouped)
-        .frame(width: 420)
-        .padding()
+    }
+
+    private var floatingCaptionSettings: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            FloatingCaptionPreview()
+
+            SettingsGroup(title: SettingsCopy.displaySettings) {
+                SettingsControlRow(
+                    title: SettingsCopy.displayContent,
+                    detail: AppText.floatingDisplayDescription,
+                    systemImage: "captions.bubble"
+                ) {
+                    Picker(AppText.floatingDisplay, selection: $session.floatingCaptionDisplayMode) {
+                        ForEach(session.availableFloatingCaptionDisplayModes) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .labelsHidden()
+                    .focusEffectDisabled()
+                    .frame(width: 168)
+                }
+
+                SettingsControlRow(
+                    title: AppText.floatingTextSize,
+                    detail: SettingsCopy.floatingTextSizeDetail,
+                    systemImage: "textformat.size"
+                ) {
+                    Picker(AppText.floatingTextSize, selection: $session.floatingCaptionTextSize) {
+                        ForEach(FloatingCaptionTextSize.allCases) { size in
+                            Text(size.title).tag(size)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .focusEffectDisabled()
+                    .frame(width: 232)
+                }
+
+                SettingsControlRow(
+                    title: AppText.floatingLineCount,
+                    detail: SettingsCopy.floatingLineCountDetail,
+                    systemImage: "line.3.horizontal"
+                ) {
+                    Picker(AppText.floatingLineCount, selection: $session.floatingCaptionLineCount) {
+                        ForEach(FloatingCaptionLineCount.allCases) { lineCount in
+                            Text(lineCount.title).tag(lineCount)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .focusEffectDisabled()
+                    .frame(width: 252)
+                }
+
+                SettingsToggleRow(
+                    title: SettingsCopy.keepOnTop,
+                    detail: SettingsCopy.keepOnTopDetail,
+                    systemImage: "pin",
+                    isOn: $session.keepsFloatingCaptionAboveOtherWindows
+                )
+            }
+
+            Label(SettingsCopy.floatingFooter, systemImage: "info.circle")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var assetSettings: some View {
+        SettingsGroup(title: AppText.requiredAssets) {
+            SettingsAssetAvailabilityRow(
+                title: AppText.speechLanguagePack,
+                availability: session.modelAvailability(for: .appleSpeechOnly)
+            ) {
+                session.downloadModelAssets(for: .appleSpeechOnly)
+            }
+
+            SettingsAssetAvailabilityRow(
+                title: AppText.translationLanguagePack,
+                availability: session.modelAvailability(for: .appleOnDevice)
+            ) {
+                session.downloadModelAssets(for: .appleOnDevice)
+            }
+        }
+    }
+
+    private var permissionSettings: some View {
+        SettingsGroup(title: AppText.permissions) {
+            SettingsValueRow(
+                title: AppText.permissions,
+                detail: AppText.permissionsHelp,
+                systemImage: "hand.raised",
+                value: SettingsCopy.required
+            )
+
+            HStack {
+                Spacer()
+
+                Button {
+                    session.openPrivacySettings()
+                } label: {
+                    Label(AppText.openPrivacySettings, systemImage: "arrow.up.right.square")
+                }
+            }
+        }
+    }
+
+    private var infoSettings: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            SettingsGroup(title: SettingsCopy.aboutAirTranslate) {
+                SettingsValueRow(
+                    title: AppText.appName,
+                    detail: AppText.appTagline,
+                    systemImage: "waveform.and.magnifyingglass",
+                    value: SettingsCopy.localFirst
+                )
+
+                SettingsValueRow(
+                    title: SettingsCopy.privacy,
+                    detail: SettingsCopy.privacyDetail,
+                    systemImage: "lock.shield",
+                    value: SettingsCopy.keychain
+                )
+            }
+
+            apiSettings
+        }
     }
 
     private var liveOutputModeBinding: Binding<LiveOutputMode> {
-        Binding(
-            get: {
-                session.liveOutputMode
-            },
-            set: { mode in
-                session.useLiveOutputMode(mode)
+        Binding {
+            session.liveOutputMode
+        } set: { mode in
+            session.useLiveOutputMode(mode)
+        }
+    }
+
+    private var statusColor: Color {
+        guard let apiKeyFeedback else {
+            return session.hasOpenAIAPIKey ? .green : .orange
+        }
+
+        if apiKeyFeedback == AppText.openAIAPIKeySaved {
+            return .green
+        }
+        if apiKeyFeedback == AppText.openAIAPIKeyRemoved {
+            return .orange
+        }
+        return .red
+    }
+
+    private func saveOpenAIAPIKey() {
+        session.saveOpenAIAPIKey(openAIAPIKey)
+        apiKeyFeedback = session.statusMessage
+        openAIAPIKey = ""
+    }
+
+    private func removeOpenAIAPIKey() {
+        session.removeOpenAIAPIKey()
+        apiKeyFeedback = session.statusMessage
+        openAIAPIKey = ""
+    }
+}
+
+private enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
+    case general
+    case audio
+    case output
+    case transcript
+    case floatingCaptions
+    case assets
+    case permissions
+    case info
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .general:
+            SettingsCopy.general
+        case .audio:
+            SettingsCopy.audio
+        case .output:
+            AppText.output
+        case .transcript:
+            AppText.transcript
+        case .floatingCaptions:
+            AppText.floatingCaptions
+        case .assets:
+            SettingsCopy.assets
+        case .permissions:
+            AppText.permissions
+        case .info:
+            SettingsCopy.info
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .general:
+            SettingsCopy.generalDetail
+        case .audio:
+            SettingsCopy.audioDetail
+        case .output:
+            SettingsCopy.outputDetail
+        case .transcript:
+            SettingsCopy.transcriptDetail
+        case .floatingCaptions:
+            SettingsCopy.floatingDetail
+        case .assets:
+            SettingsCopy.assetsDetail
+        case .permissions:
+            SettingsCopy.permissionsDetail
+        case .info:
+            SettingsCopy.infoDetail
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .general:
+            "slider.horizontal.3"
+        case .audio:
+            "mic"
+        case .output:
+            "waveform"
+        case .transcript:
+            "doc.text"
+        case .floatingCaptions:
+            "captions.bubble"
+        case .assets:
+            "cube.box"
+        case .permissions:
+            "shield.lefthalf.filled"
+        case .info:
+            "info.circle"
+        }
+    }
+}
+
+private enum SettingsCopy {
+    static let general = AppText.localized(english: "General", korean: "일반")
+    static let audio = AppText.localized(english: "Audio", korean: "오디오")
+    static let assets = AppText.localized(english: "Assets", korean: "자산")
+    static let info = AppText.localized(english: "Info", korean: "정보")
+    static let generalDetail = AppText.localized(
+        english: "Set the default translation mode and language behavior.",
+        korean: "기본 번역 방식과 언어 동작을 설정합니다."
+    )
+    static let audioDetail = AppText.localized(
+        english: "Choose where AirTranslate listens from.",
+        korean: "AirTranslate가 어떤 오디오를 들을지 선택합니다."
+    )
+    static let outputDetail = AppText.localized(
+        english: "Control what appears and whether translated speech plays.",
+        korean: "표시할 결과와 번역 음성 출력을 조정합니다."
+    )
+    static let transcriptDetail = AppText.localized(
+        english: "Tune paragraphing, long sessions, and saved transcript behavior.",
+        korean: "문단 나누기, 긴 세션, 저장 기록 동작을 조정합니다."
+    )
+    static let floatingDetail = AppText.localized(
+        english: "Configure the detachable floating caption window.",
+        korean: "별도 창으로 표시되는 플로팅 자막을 설정합니다."
+    )
+    static let assetsDetail = AppText.localized(
+        english: "Check local speech and translation assets.",
+        korean: "로컬 음성 인식 및 번역 자산을 확인합니다."
+    )
+    static let permissionsDetail = AppText.localized(
+        english: "Open macOS privacy controls required for capture.",
+        korean: "캡처에 필요한 macOS 개인정보 보호 권한을 엽니다."
+    )
+    static let infoDetail = AppText.localized(
+        english: "Review local-first behavior and privacy notes.",
+        korean: "로컬 우선 동작과 개인정보 안내를 확인합니다."
+    )
+    static let modeSettings = AppText.localized(english: "Mode Settings", korean: "모드 설정")
+    static let processingModeDetail = AppText.localized(
+        english: "Changing the processing path is disabled while capture is running.",
+        korean: "캡처 중에는 처리 방식을 변경할 수 없습니다."
+    )
+    static let languagePairDetail = AppText.localized(
+        english: "Language pair is changed from the quick settings sidebar.",
+        korean: "언어 조합은 빠른 설정 사이드바에서 변경합니다."
+    )
+    static let autoDetectDetail = AppText.localized(
+        english: "Temporarily unavailable while automatic detection is improved.",
+        korean: "자동 감지 개선 중이라 잠시 비활성화되어 있습니다."
+    )
+    static let captureRunningDisabledReason = AppText.localized(
+        english: "Stop capture before changing this setting.",
+        korean: "이 설정을 바꾸려면 먼저 캡처를 중지하세요."
+    )
+    static let openAIRealtimeDisabledReason = AppText.localized(
+        english: "Transcript cleanup is disabled while OpenAI Realtime is active.",
+        korean: "OpenAI Realtime이 켜져 있을 때는 기록 다듬기를 사용할 수 없습니다."
+    )
+    static let gptTranscriptionDetail = AppText.localized(
+        english: "Use Apple Speech by default, or enable OpenAI Realtime transcription.",
+        korean: "기본은 Apple Speech이며 필요할 때 OpenAI Realtime 전사를 켭니다."
+    )
+    static let gptTranslationDetail = AppText.localized(
+        english: "Use Apple Translation by default, or enable OpenAI Realtime translation.",
+        korean: "기본은 Apple Translation이며 필요할 때 OpenAI Realtime 번역을 켭니다."
+    )
+    static let audioInputDetail = AppText.localized(
+        english: "Mac audio captures system playback. Microphone captures the selected input device.",
+        korean: "PC 소리는 시스템 재생음을, 마이크는 선택한 입력 장치를 캡처합니다."
+    )
+    static let microphoneDeviceDetail = AppText.localized(
+        english: "Available only when microphone input is selected.",
+        korean: "마이크 입력을 선택했을 때 사용할 수 있습니다."
+    )
+    static let outputModeDetail = AppText.localized(
+        english: "Translation shows source and target text. Transcribe Only keeps the source text.",
+        korean: "번역은 원문과 번역을 표시하고, 전사만은 원문 기록만 유지합니다."
+    )
+    static let dubbingDetail = AppText.localized(
+        english: "Speak translated output when a stable translated segment is available.",
+        korean: "안정된 번역 문장이 생기면 번역 음성을 재생합니다."
+    )
+    static let displaySettings = AppText.localized(english: "Display Settings", korean: "표시 설정")
+    static let displayContent = AppText.localized(english: "Display Content", korean: "표시 내용")
+    static let floatingTextSizeDetail = AppText.localized(
+        english: "Controls the optical size used in the floating caption window.",
+        korean: "플로팅 자막 창에 쓰이는 글자 크기를 조정합니다."
+    )
+    static let floatingLineCountDetail = AppText.localized(
+        english: "Limits how many wrapped lines stay visible at once.",
+        korean: "한 번에 표시되는 줄 수를 제한합니다."
+    )
+    static let keepOnTop = AppText.localized(english: "Always On Top", korean: "항상 위에 표시")
+    static let keepOnTopDetail = AppText.localized(
+        english: "Keep floating captions above other windows.",
+        korean: "다른 창 위에 플로팅 자막을 고정합니다."
+    )
+    static let floatingFooter = AppText.localized(
+        english: "Floating captions appear in a separate movable window.",
+        korean: "플로팅 자막은 별도 창으로 표시되며 원하는 위치로 이동할 수 있습니다."
+    )
+    static let floatingPreviewAccessibilityLabel = AppText.localized(
+        english: "Floating caption preview. Original: We're going to focus on real-time translation. Translation: We will focus on real-time translation.",
+        korean: "플로팅 자막 미리보기. 원문: We're going to focus on real-time translation. 번역: 우리는 실시간 번역에 집중할 것입니다."
+    )
+    static let required = AppText.localized(english: "Required", korean: "필수")
+    static let aboutAirTranslate = AppText.localized(english: "About AirTranslate", korean: "AirTranslate 정보")
+    static let localFirst = AppText.localized(english: "Local first", korean: "로컬 우선")
+    static let privacy = AppText.localized(english: "Privacy", korean: "개인정보")
+    static let privacyDetail = AppText.localized(
+        english: "Apple mode runs locally. OpenAI Realtime is used only after you provide an API key.",
+        korean: "Apple 모드는 로컬에서 실행됩니다. OpenAI Realtime은 사용자가 API 키를 제공한 뒤에만 사용됩니다."
+    )
+    static let keychain = AppText.localized(english: "Keychain", korean: "Keychain")
+    static let selected = AppText.localized(english: "Selected", korean: "선택됨")
+    static let sidebarHint = AppText.localized(
+        english: "Opens this settings category.",
+        korean: "이 설정 카테고리를 엽니다."
+    )
+}
+
+private struct SettingsSidebar: View {
+    @Binding var selection: SettingsCategory
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(SettingsCategory.allCases) { category in
+                Button {
+                    selection = category
+                } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: category.systemImage)
+                            .font(.title3.weight(.medium))
+                            .foregroundStyle(selection == category ? Color.primary : Color.secondary)
+                            .frame(width: 28, height: 28)
+
+                        Text(category.title)
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(selection == category ? Color.primary : Color.secondary)
+                            .lineLimit(1)
+
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 16)
+                    .frame(height: 48)
+                    .background {
+                        if selection == category {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(Color.primary.opacity(0.10))
+                        }
+                    }
+                    .overlay(alignment: .leading) {
+                        if selection == category {
+                            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                .fill(Color.accentColor)
+                                .frame(width: 4, height: 40)
+                                .padding(.leading, 2)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(category.title)
+                .accessibilityValue(selection == category ? SettingsCopy.selected : "")
+                .accessibilityHint(SettingsCopy.sidebarHint)
+                .accessibilityAddTraits(selection == category ? .isSelected : [])
+                .focusEffectDisabled()
+                .focusable(false)
             }
-        )
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 28)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .background(Color.primary.opacity(0.035))
+    }
+}
+
+private struct SettingsPageHeader: View {
+    let category: SettingsCategory
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 16) {
+            Image(systemName: category.systemImage)
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(width: 46, height: 46)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color.accentColor)
+                )
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(category.title)
+                    .font(.title2.weight(.bold))
+
+                Text(category.detail)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+    }
+}
+
+private struct FloatingCaptionPreview: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(AppText.localized(english: "Preview", korean: "미리보기"))
+                .font(.headline)
+
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(nsColor: .controlBackgroundColor),
+                                Color.accentColor.opacity(0.18),
+                                Color.black.opacity(0.48)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .opacity(0.45)
+
+                VStack(spacing: 10) {
+                    Text("We're going to focus on real-time translation.")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.white)
+
+                    Text("우리는 실시간 번역에 집중할 것입니다.")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(Color.accentColor)
+                }
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 28)
+                .padding(.vertical, 22)
+                .background(.black.opacity(0.72), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .shadow(color: .black.opacity(0.55), radius: 14, x: 0, y: 8)
+            }
+            .frame(height: 122)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(SettingsCopy.floatingPreviewAccessibilityLabel)
+        }
+    }
+}
+
+private struct SettingsNoticeRow: View {
+    let text: String
+    let systemImage: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: systemImage)
+                .font(.body.weight(.medium))
+                .foregroundStyle(Color.orange)
+                .frame(width: 28, height: 28)
+
+            Text(text)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.orange)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 9)
+        .settingsRowSeparator()
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct SettingsGroup<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.headline)
+
+            VStack(spacing: 0) {
+                content
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.primary.opacity(0.045))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+            )
+        }
+    }
+}
+
+private struct SettingsControlRow<Trailing: View>: View {
+    let title: String
+    let detail: String
+    let systemImage: String
+    @ViewBuilder let trailing: Trailing
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 14) {
+            SettingsRowLabel(title: title, detail: detail, systemImage: systemImage)
+
+            Spacer(minLength: 16)
+
+            trailing
+                .controlSize(.regular)
+        }
+        .padding(.vertical, 9)
+        .settingsRowSeparator()
+    }
+}
+
+private struct SettingsToggleRow: View {
+    let title: String
+    let detail: String
+    let systemImage: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        SettingsControlRow(title: title, detail: detail, systemImage: systemImage) {
+            Toggle(title, isOn: $isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+        }
+    }
+}
+
+private struct SettingsValueRow: View {
+    let title: String
+    let detail: String
+    let systemImage: String
+    let value: String
+
+    var body: some View {
+        SettingsControlRow(title: title, detail: detail, systemImage: systemImage) {
+            Text(value)
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+        }
+    }
+}
+
+private struct SettingsRowLabel: View {
+    let title: String
+    let detail: String
+    let systemImage: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.title3.weight(.medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 28, height: 28)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.primary)
+
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(width: 208, alignment: .leading)
+        .layoutPriority(1)
     }
 }
 
@@ -142,34 +947,26 @@ private struct SettingsAssetAvailabilityRow: View {
     let download: () -> Void
 
     var body: some View {
-        HStack(alignment: .center, spacing: 10) {
-            Image(systemName: symbolName)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(color)
-                .frame(width: 22)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.body)
-
-                Text(availability.detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
+        SettingsControlRow(
+            title: title,
+            detail: availability.detail,
+            systemImage: symbolName
+        ) {
             if availability.state == .checking || availability.state == .downloading {
                 ProgressView()
                     .controlSize(.small)
+                    .accessibilityLabel(title)
+                    .accessibilityValue(availability.state.title)
             } else if availability.state.canDownload {
                 Button(AppText.download) {
                     download()
                 }
+                .accessibilityLabel("\(title) \(AppText.download)")
             } else {
                 Text(availability.state.title)
-                    .font(.caption.weight(.semibold))
+                    .font(.callout.weight(.semibold))
                     .foregroundStyle(color)
+                    .accessibilityLabel("\(title) \(availability.state.title)")
             }
         }
         .help(availability.detail)
@@ -198,6 +995,17 @@ private struct SettingsAssetAvailabilityRow: View {
             .orange
         case .unsupported, .unavailable, .failed:
             .red
+        }
+    }
+}
+
+private extension View {
+    func settingsRowSeparator() -> some View {
+        overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.primary.opacity(0.08))
+                .frame(height: 1)
+                .padding(.leading, 42)
         }
     }
 }
