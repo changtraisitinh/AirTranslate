@@ -196,6 +196,20 @@ enum AppText {
         english: "Add an OpenAI API key in Settings before using OpenAI Translation.",
         korean: "OpenAI 번역을 사용하려면 설정에서 OpenAI API 키를 먼저 입력하세요."
     )
+    static let startBlockedLocalAssetsChecking = localized(
+        english: "Still checking local language assets. Try again in a moment.",
+        korean: "로컬 언어 자산을 아직 확인하는 중입니다. 잠시 후 다시 시작하세요."
+    )
+    static let startBlockedLocalAssetsDownloadRequired = localized(
+        english: "Download the required language assets before starting.",
+        korean: "시작하기 전에 필요한 언어 자산을 다운로드하세요."
+    )
+    static func startBlockedLocalAssetsUnavailable(_ detail: String) -> String {
+        localized(
+            english: "Required language assets are unavailable: \(detail)",
+            korean: "필요한 언어 자산을 사용할 수 없습니다: \(detail)"
+        )
+    }
     static let openAIAPIKeyRequiredForGPTMode = localized(
         english: "Enter an OpenAI API key to use GPT mode.",
         korean: "GPT 모드를 사용하려면 OpenAI API 키를 입력하세요.",

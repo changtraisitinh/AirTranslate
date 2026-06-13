@@ -9,16 +9,7 @@ struct CaptionBoardView: View {
         VStack(alignment: .leading, spacing: 20) {
             CaptionBoardHeader(
                 session: session,
-                isFloatingCaptionVisible: isFloatingCaptionVisible,
-                toggleCapture: {
-                    requestCaptureToggle()
-                },
-                togglePause: {
-                    togglePause()
-                },
-                showFloatingCaptions: {
-                    toggleFloatingCaptions()
-                }
+                isFloatingCaptionVisible: isFloatingCaptionVisible
             )
 
             CaptionTranscriptFeed(session: session)
@@ -33,23 +24,6 @@ struct CaptionBoardView: View {
         }
     }
 
-    private func toggleFloatingCaptions() {
-        FloatingCaptionWindowController.toggle(session: session)
-        syncFloatingCaptionVisibility()
-    }
-
-    private func requestCaptureToggle() {
-        if session.isRunning {
-            session.stop()
-        } else {
-            session.start()
-        }
-    }
-
-    private func togglePause() {
-        session.isPaused ? session.resume() : session.pause()
-    }
-
     private func syncFloatingCaptionVisibility() {
         isFloatingCaptionVisible = FloatingCaptionWindowController.isOpen
     }
@@ -58,21 +32,17 @@ struct CaptionBoardView: View {
 private struct CaptionBoardHeader: View {
     @Bindable var session: TranslationSessionStore
     let isFloatingCaptionVisible: Bool
-    let toggleCapture: () -> Void
-    let togglePause: () -> Void
-    let showFloatingCaptions: () -> Void
 
     var body: some View {
         SessionOverviewCard(
             title: AppText.transcriptWorkspace,
             subtitle: session.languageSummary,
             isRunning: session.isRunning,
+            isStarting: session.isStarting,
             isPaused: session.isPaused,
+            statusMessage: session.statusMessage,
             audioLevel: session.latestAudioLevel,
-            isFloatingCaptionVisible: isFloatingCaptionVisible,
-            toggleCapture: toggleCapture,
-            togglePause: togglePause,
-            showFloatingCaptions: showFloatingCaptions
+            isFloatingCaptionVisible: isFloatingCaptionVisible
         )
     }
 }
@@ -544,19 +514,11 @@ private struct SessionOverviewCard: View {
     let title: String
     let subtitle: String
     let isRunning: Bool
+    let isStarting: Bool
     let isPaused: Bool
+    let statusMessage: String
     let audioLevel: Float?
     let isFloatingCaptionVisible: Bool
-    let toggleCapture: () -> Void
-    let togglePause: () -> Void
-    let showFloatingCaptions: () -> Void
-    @State private var recentlyClickedControl: HeaderControl?
-
-    private enum HeaderControl {
-        case capture
-        case pause
-        case floatingCaptions
-    }
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
@@ -565,9 +527,19 @@ private struct SessionOverviewCard: View {
                 .foregroundStyle(Color.accentColor)
                 .frame(width: 32, height: 32)
                 .background(Color.accentColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-                .help("\(title) · \(subtitle)")
+                .overlay(alignment: .topTrailing) {
+                    if isFloatingCaptionVisible {
+                        Circle()
+                            .fill(Color.green)
+                            .frame(width: 7, height: 7)
+                            .padding(4)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .help(headerIconHelp)
                 .accessibilityLabel(title)
-                .accessibilityValue(subtitle)
+                .accessibilityValue(headerIconValue)
+                .animation(.spring(response: 0.22, dampingFraction: 0.78), value: isFloatingCaptionVisible)
 
             HeaderAudioLevelStrip(
                 isRunning: isRunning,
@@ -577,64 +549,15 @@ private struct SessionOverviewCard: View {
             .frame(maxWidth: .infinity)
             .opacity(isRunning ? 1 : 0)
             .accessibilityHidden(!isRunning)
-
-            HStack(spacing: 6) {
-                Button {
-                    registerClick(.capture, action: toggleCapture)
-                } label: {
-                    HeaderCaptureTransportButton(
-                        isRunning: isRunning,
-                        isPaused: isPaused,
-                        isRecentlyClicked: recentlyClickedControl == .capture
-                    )
-                }
-                .buttonStyle(HeaderTransportButtonStyle(isActive: isRunning))
-                .help(isRunning ? AppText.stop : AppText.start)
-                .accessibilityLabel(isRunning ? AppText.stop : AppText.start)
-                .accessibilityValue(captureStateTitle)
-                .accessibilityAddTraits(isRunning ? .isSelected : [])
-
-                if isRunning {
-                    Button {
-                        registerClick(.pause, action: togglePause)
-                    } label: {
-                        HeaderPauseTransportButton(
-                            isPaused: isPaused,
-                            isRecentlyClicked: recentlyClickedControl == .pause
-                        )
-                    }
-                    .buttonStyle(HeaderTransportButtonStyle(isActive: isPaused))
-                    .help(isPaused ? AppText.resume : AppText.pause)
-                    .accessibilityLabel(isPaused ? AppText.resume : AppText.pause)
-                    .accessibilityValue(isPaused ? AppText.paused : AppText.listening)
-                    .accessibilityAddTraits(isPaused ? .isSelected : [])
-                }
-
-                Button {
-                    registerClick(.floatingCaptions, action: showFloatingCaptions)
-                } label: {
-                    HeaderFloatingCaptionToggleButton(
-                        isOn: isFloatingCaptionVisible,
-                        isRecentlyClicked: recentlyClickedControl == .floatingCaptions
-                    )
-                }
-                .buttonStyle(HeaderTransportButtonStyle(isActive: isFloatingCaptionVisible))
-                .help(AppText.showFloatingCaptions)
-                .accessibilityLabel(AppText.showFloatingCaptions)
-                .accessibilityValue(isFloatingCaptionVisible ? AppText.floatingCaptionPowerOn : AppText.floatingCaptionPowerOff)
-                .accessibilityAddTraits(isFloatingCaptionVisible ? .isSelected : [])
-            }
-            .padding(5)
-            .background(.ultraThinMaterial, in: Capsule())
             .overlay {
-                Capsule()
-                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+                if !isRunning {
+                    HeaderStatusMessage(
+                        statusMessage: statusMessage,
+                        isStarting: isStarting,
+                        isBlocked: isBlocked
+                    )
+                }
             }
-            .animation(.spring(response: 0.22, dampingFraction: 0.82), value: recentlyClickedControl)
-            .animation(.spring(response: 0.24, dampingFraction: 0.78), value: isRunning)
-            .animation(.spring(response: 0.24, dampingFraction: 0.78), value: isPaused)
-            .animation(.spring(response: 0.24, dampingFraction: 0.78), value: isFloatingCaptionVisible)
-            .layoutPriority(2)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
@@ -646,201 +569,79 @@ private struct SessionOverviewCard: View {
         }
     }
 
-    private var captureStateTitle: String {
-        if isPaused {
-            return AppText.paused
-        }
-        if isRunning {
-            return AppText.listening
-        }
-        return AppText.ready
+    private var headerIconHelp: String {
+        "\(title) · \(subtitle) · \(AppText.floatingCaptions): \(floatingCaptionStateTitle)"
     }
 
-    private func registerClick(_ control: HeaderControl, action: () -> Void) {
-        recentlyClickedControl = control
-        action()
+    private var headerIconValue: String {
+        "\(subtitle), \(AppText.floatingCaptions) \(floatingCaptionStateTitle)"
+    }
 
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(800))
-            if recentlyClickedControl == control {
-                recentlyClickedControl = nil
-            }
-        }
+    private var floatingCaptionStateTitle: String {
+        isFloatingCaptionVisible ? AppText.floatingCaptionPowerOn : AppText.floatingCaptionPowerOff
+    }
+
+    private var isBlocked: Bool {
+        !isRunning && !isStarting && statusMessage != AppText.ready && statusMessage != AppText.stopped
     }
 }
 
-private struct HeaderCaptureTransportButton: View {
-    let isRunning: Bool
-    let isPaused: Bool
-    let isRecentlyClicked: Bool
+private struct HeaderStatusMessage: View {
+    let statusMessage: String
+    let isStarting: Bool
+    let isBlocked: Bool
 
-    private var accentColor: Color {
-        if isPaused {
+    private var symbolName: String {
+        if isStarting {
+            return "clock"
+        }
+        if isBlocked {
+            return "exclamationmark.triangle.fill"
+        }
+        return "checkmark.circle.fill"
+    }
+
+    private var foregroundStyle: Color {
+        if isStarting {
+            return .accentColor
+        }
+        if isBlocked {
             return .orange
         }
-        if isRunning {
-            return .red
-        }
-        return .accentColor
-    }
-
-    private var systemImage: String {
-        isRunning ? "xmark" : "play.fill"
+        return .secondary
     }
 
     var body: some View {
-        HeaderTransportIconSurface(
-            accentColor: accentColor,
-            isActive: isRunning,
-            isRecentlyClicked: isRecentlyClicked,
-            activeFillOpacity: isRunning ? 0.14 : 0.18,
-            activeStrokeOpacity: isRunning ? 0.36 : 0.36
-        ) {
-            Image(systemName: systemImage)
-                .font(.system(size: isRunning ? 15 : 14, weight: .black))
-                .foregroundStyle(accentColor)
-                .frame(width: 18, height: 18)
-                .offset(x: isRunning ? 0 : 1)
-        }
-    }
-}
-
-private struct HeaderPauseTransportButton: View {
-    let isPaused: Bool
-    let isRecentlyClicked: Bool
-
-    private var accentColor: Color {
-        isPaused ? .accentColor : .secondary
-    }
-
-    var body: some View {
-        HeaderTransportIconSurface(
-            accentColor: accentColor,
-            isActive: isPaused,
-            isRecentlyClicked: isRecentlyClicked,
-            activeFillOpacity: 0.22,
-            activeStrokeOpacity: 0.48
-        ) {
-            Image(systemName: isPaused ? "play.fill" : "pause.fill")
-                .font(.system(size: isPaused ? 14 : 15, weight: .black))
-                .foregroundStyle(accentColor)
-                .offset(x: isPaused ? 0.9 : 0)
-        }
-    }
-}
-
-private struct HeaderFloatingCaptionToggleButton: View {
-    let isOn: Bool
-    let isRecentlyClicked: Bool
-
-    private var accentColor: Color {
-        isOn ? .green : .secondary
-    }
-
-    var body: some View {
-        HeaderTransportIconSurface(
-            accentColor: accentColor,
-            isActive: isOn,
-            isRecentlyClicked: isRecentlyClicked,
-            activeFillOpacity: 0.11,
-            activeStrokeOpacity: 0.32
-        ) {
-            Image(systemName: isOn ? "captions.bubble.fill" : "captions.bubble")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(accentColor)
-        }
-    }
-}
-
-private struct HeaderTransportButtonStyle: ButtonStyle {
-    let isActive: Bool
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.92 : 1)
-            .brightness(configuration.isPressed ? 0.05 : 0)
-            .opacity(isActive || !configuration.isPressed ? 1 : 0.92)
-            .animation(.spring(response: 0.2, dampingFraction: 0.72), value: configuration.isPressed)
-    }
-}
-
-private struct HeaderTransportIconSurface<Content: View>: View {
-    let accentColor: Color
-    let isActive: Bool
-    let isRecentlyClicked: Bool
-    let activeFillOpacity: Double
-    let activeStrokeOpacity: Double
-    let liveDotColor: Color?
-    private let content: Content
-    @State private var isHovered = false
-
-    init(
-        accentColor: Color,
-        isActive: Bool,
-        isRecentlyClicked: Bool,
-        activeFillOpacity: Double,
-        activeStrokeOpacity: Double,
-        liveDotColor: Color? = nil,
-        @ViewBuilder content: () -> Content
-    ) {
-        self.accentColor = accentColor
-        self.isActive = isActive
-        self.isRecentlyClicked = isRecentlyClicked
-        self.activeFillOpacity = activeFillOpacity
-        self.activeStrokeOpacity = activeStrokeOpacity
-        self.liveDotColor = liveDotColor
-        self.content = content()
-    }
-
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(accentColor.opacity(isActive ? activeFillOpacity : (isHovered ? 0.15 : 0.09)))
-
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(accentColor.opacity(isActive ? activeStrokeOpacity : (isHovered ? 0.32 : 0.16)), lineWidth: 1.2)
-
-            content
-
-            if let liveDotColor {
-                Circle()
-                    .fill(liveDotColor)
-                    .frame(width: 7, height: 7)
-                    .shadow(color: liveDotColor.opacity(isActive ? 0.75 : 0), radius: isActive ? 5 : 0)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                    .padding(6)
-                    .accessibilityHidden(true)
+        HStack(spacing: 8) {
+            if isStarting {
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(width: 16, height: 16)
+            } else {
+                Image(systemName: symbolName)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(foregroundStyle)
+                    .frame(width: 16, height: 16)
             }
 
-            if isRecentlyClicked {
-                HeaderClickConfirmationMark(accentColor: accentColor)
-            }
+            Text(statusMessage)
+                .font(.caption.weight(isBlocked ? .semibold : .medium))
+                .foregroundStyle(foregroundStyle)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .minimumScaleFactor(0.78)
         }
-        .frame(width: 40, height: 40)
-        .scaleEffect(isHovered ? 1.035 : 1)
-        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .onHover { isHovered = $0 }
-        .animation(.spring(response: 0.22, dampingFraction: 0.76), value: isHovered)
-        .animation(.spring(response: 0.24, dampingFraction: 0.8), value: isActive)
-    }
-}
-
-private struct HeaderClickConfirmationMark: View {
-    let accentColor: Color
-
-    var body: some View {
-        Image(systemName: "checkmark")
-            .font(.system(size: 7, weight: .black))
-            .foregroundStyle(.white)
-            .frame(width: 12, height: 12)
-            .background(accentColor, in: Circle())
-            .overlay {
-                Circle()
-                    .strokeBorder(Color.white.opacity(0.82), lineWidth: 1)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-            .padding(4)
-            .transition(.scale.combined(with: .opacity))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(foregroundStyle.opacity(isBlocked ? 0.12 : 0.08), in: Capsule())
+        .overlay {
+            Capsule()
+                .strokeBorder(foregroundStyle.opacity(isBlocked ? 0.28 : 0.14), lineWidth: 1)
+        }
+        .help(statusMessage)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(statusMessage)
     }
 }
 

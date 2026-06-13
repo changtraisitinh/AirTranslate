@@ -89,6 +89,7 @@ final class TranslationSessionStore {
     private static let isAppleSourceAutoDetectionTemporarilyDisabled = true
 
     var isRunning = false
+    var isStarting = false
     var isPaused = false
     var isDubbingEnabled = false {
         didSet {
@@ -225,6 +226,8 @@ final class TranslationSessionStore {
     private let openAIRealtimeAudioOutput = OpenAIRealtimeAudioOutput()
     private let spellChecker = NSSpellChecker.shared
     private let spellDocumentTag = NSSpellChecker.uniqueSpellDocumentTag()
+    private let modelAvailabilityProvider: (LanguageOption, LanguageOption) async -> [String: ModelAvailability]
+    private let modelAssetDownloader: (IntelligenceModel, LanguageOption, LanguageOption) async throws -> Void
     private var audioSampleCount = 0
     private var lastRecognizedText = ""
     private var lastRecognizedWasFinal = false
@@ -262,6 +265,7 @@ final class TranslationSessionStore {
     private var activeAutosaveTranslatedText = ""
     private var isRestoringSelectedSettings = false
     private var modelAvailabilityTask: Task<Void, Never>?
+    private var autoStartAfterModelAssetDownloadTask: Task<Void, Never>?
     private var toastDismissTask: Task<Void, Never>?
     private var transcribeOnlyNoticeDismissTask: Task<Void, Never>?
     private var captureStartTask: Task<Void, Never>?
@@ -311,8 +315,18 @@ final class TranslationSessionStore {
         var translation: SavedTranscriptFile?
     }
 
-    init() {
+    init(
+        modelAvailabilityProvider: @escaping (LanguageOption, LanguageOption) async -> [String: ModelAvailability] = { source, target in
+            await ModelAvailabilityChecker.availability(source: source, target: target)
+        },
+        modelAssetDownloader: @escaping (IntelligenceModel, LanguageOption, LanguageOption) async throws -> Void = { model, source, target in
+            try await ModelAvailabilityChecker.downloadAssets(for: model, source: source, target: target)
+        }
+    ) {
+        self.modelAvailabilityProvider = modelAvailabilityProvider
+        self.modelAssetDownloader = modelAssetDownloader
         restoreSelectedSettings()
+        syncLiveOutputModeWithLanguagePair()
         systemAudioCapture.delegate = self
         microphoneAudioCapture.delegate = self
         transcriber.delegate = self
@@ -361,12 +375,22 @@ final class TranslationSessionStore {
     }
 
     func start() {
-        guard !isRunning else { return }
+        guard !isRunning, !isStarting else { return }
 
-        resetLiveSessionState(clearsVisibleLines: true)
+        let readiness = startReadinessAssessment()
+        guard readiness.canStart else {
+            if readiness.issue == .localAssetsDownloadRequired,
+               let model = requiredLocalModelForStart {
+                downloadRequiredModelAssetsThenStart(model)
+                return
+            }
+            statusMessage = statusMessage(for: readiness)
+            return
+        }
+
         isPaused = false
         setCaptionersPaused(false)
-        isRunning = true
+        isStarting = true
         captureStartTask?.cancel()
         statusMessage = audioInputSource == .microphone
             ? AppText.checkingMicrophonePermission
@@ -377,10 +401,10 @@ final class TranslationSessionStore {
                 if audioInputSource == .systemAudio {
                     try systemAudioCapture.requestScreenRecordingAccess()
                 }
-                guard !Task.isCancelled, isRunning else { return }
+                guard !Task.isCancelled, isStarting else { return }
                 statusMessage = AppText.checkingSpeechPermission
                 try await startCaptioners()
-                guard !Task.isCancelled, isRunning else {
+                guard !Task.isCancelled, isStarting else {
                     stopCaptioners()
                     return
                 }
@@ -397,15 +421,19 @@ final class TranslationSessionStore {
                         deviceUniqueID: selectedMicrophoneDevice.uniqueID
                     )
                 }
-                guard !Task.isCancelled, isRunning else {
+                guard !Task.isCancelled, isStarting else {
                     await stopCapture()
                     stopCaptioners()
                     return
                 }
+                resetLiveSessionState(clearsVisibleLines: true)
+                isRunning = true
+                isStarting = false
                 statusMessage = AppText.listeningForSpeech(from: audioInputSource)
                 warmTranslationSession()
             } catch {
                 guard !Task.isCancelled else { return }
+                isStarting = false
                 isRunning = false
                 stopCaptioners()
                 await stopCapture()
@@ -415,15 +443,18 @@ final class TranslationSessionStore {
     }
 
     func stop() {
-        guard isRunning else { return }
+        guard isRunning || isStarting else { return }
 
         captureStartTask?.cancel()
         captureStartTask = nil
+        autoStartAfterModelAssetDownloadTask?.cancel()
+        autoStartAfterModelAssetDownloadTask = nil
         flushPendingCaptionPresentation()
         let didSaveTranscript = flushPendingTranscriptSave()
         resetLiveSessionState(clearsVisibleLines: false)
         isPaused = false
         setCaptionersPaused(false)
+        isStarting = false
         isRunning = false
         statusMessage = AppText.stopped
         stopCaptioners()
@@ -433,6 +464,39 @@ final class TranslationSessionStore {
 
         Task {
             await stopCapture()
+        }
+    }
+
+    func startReadinessAssessment() -> StartReadinessAssessment {
+        StartReadinessPolicy.assess(
+            requiresOpenAIAPIKey: isUsingOpenAIRealtime,
+            hasOpenAIAPIKey: hasOpenAIAPIKey,
+            requiredLocalModelAvailability: requiredLocalModelForStart.map { modelAvailability(for: $0) }
+        )
+    }
+
+    private var requiredLocalModelForStart: IntelligenceModel? {
+        if openAITranslationModel.usesRealtimeAudioTranslation {
+            return nil
+        }
+        if openAITranscriptionModel.isEnabled {
+            return isTranscribeOnlyMode ? nil : .appleOnDevice
+        }
+        return selectedModel
+    }
+
+    private func statusMessage(for readiness: StartReadinessAssessment) -> String {
+        switch readiness.issue {
+        case nil:
+            return AppText.ready
+        case .openAIAPIKeyMissing:
+            return AppText.openAIAPIKeyRequiredForGPTMode
+        case .localAssetsChecking:
+            return AppText.startBlockedLocalAssetsChecking
+        case .localAssetsDownloadRequired:
+            return AppText.startBlockedLocalAssetsDownloadRequired
+        case .localAssetsUnavailable(let detail):
+            return AppText.startBlockedLocalAssetsUnavailable(detail)
         }
     }
 
@@ -505,6 +569,7 @@ final class TranslationSessionStore {
     }
 
     func prepareForTermination() {
+        autoStartAfterModelAssetDownloadTask?.cancel()
         flushPendingCaptionPresentation()
         _ = flushPendingTranscriptSave()
     }
@@ -716,17 +781,81 @@ final class TranslationSessionStore {
 
         Task { @MainActor in
             do {
-                try await ModelAvailabilityChecker.downloadAssets(
-                    for: model,
-                    source: sourceLanguage,
-                    target: targetLanguage
-                )
+                try await modelAssetDownloader(model, sourceLanguage, targetLanguage)
                 refreshModelAvailability()
             } catch {
                 modelAvailabilityByModelID[model.id] = ModelAvailability(
                     state: .failed,
                     detail: error.localizedDescription
                 )
+            }
+        }
+    }
+
+    private func downloadRequiredModelAssetsThenStart(_ model: IntelligenceModel) {
+        guard modelAvailability(for: model).state.canDownload else {
+            statusMessage = statusMessage(for: startReadinessAssessment())
+            return
+        }
+
+        let sourceLanguage = sourceLanguage
+        let targetLanguage = targetLanguage
+        isPaused = false
+        setCaptionersPaused(false)
+        isStarting = true
+        statusMessage = "\(AppText.modelStatusDownloading): \(model.title)"
+        modelAvailabilityByModelID[model.id] = ModelAvailability(
+            state: .downloading,
+            detail: model.detail
+        )
+
+        autoStartAfterModelAssetDownloadTask?.cancel()
+        autoStartAfterModelAssetDownloadTask = Task { [weak self, model, sourceLanguage, targetLanguage] in
+            do {
+                try await self?.modelAssetDownloader(model, sourceLanguage, targetLanguage)
+                guard !Task.isCancelled else { return }
+                let availabilityByModelID = await self?.modelAvailabilityProvider(sourceLanguage, targetLanguage) ?? [:]
+                guard !Task.isCancelled else { return }
+
+                await MainActor.run {
+                    guard let self else { return }
+                    self.modelAvailabilityByModelID = availabilityByModelID
+                    guard self.isStarting else { return }
+
+                    guard sourceLanguage == self.sourceLanguage,
+                          targetLanguage == self.targetLanguage,
+                          model == self.requiredLocalModelForStart
+                    else {
+                        self.isStarting = false
+                        self.statusMessage = AppText.ready
+                        self.refreshModelAvailability()
+                        return
+                    }
+
+                    let readiness = self.startReadinessAssessment()
+                    guard readiness.canStart else {
+                        self.isStarting = false
+                        self.statusMessage = self.statusMessage(for: readiness)
+                        return
+                    }
+
+                    self.isStarting = false
+                    self.autoStartAfterModelAssetDownloadTask = nil
+                    self.start()
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                await MainActor.run {
+                    guard let self else { return }
+                    self.isStarting = false
+                    self.autoStartAfterModelAssetDownloadTask = nil
+                    self.modelAvailabilityByModelID[model.id] = ModelAvailability(
+                        state: .failed,
+                        detail: error.localizedDescription
+                    )
+                    self.statusMessage = AppText.startFailed(error.localizedDescription)
+                }
             }
         }
     }
@@ -1045,10 +1174,7 @@ final class TranslationSessionStore {
         )
 
         modelAvailabilityTask = Task { [weak self, sourceLanguage, targetLanguage] in
-            let availabilityByModelID = await ModelAvailabilityChecker.availability(
-                source: sourceLanguage,
-                target: targetLanguage
-            )
+            let availabilityByModelID = await self?.modelAvailabilityProvider(sourceLanguage, targetLanguage) ?? [:]
             guard !Task.isCancelled else { return }
 
             await MainActor.run {

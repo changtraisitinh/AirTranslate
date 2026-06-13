@@ -2,12 +2,14 @@ import SwiftUI
 
 struct ContentView: View {
     @Bindable var session: TranslationSessionStore
+    @State private var isLibraryPresented = false
+    @State private var isFloatingCaptionVisible = FloatingCaptionWindowController.isOpen
 
     var body: some View {
         ZStack(alignment: .top) {
             NavigationSplitView {
                 SidebarView(session: session)
-                    .navigationSplitViewColumnWidth(min: 240, ideal: 260, max: 300)
+                    .navigationSplitViewColumnWidth(min: 300, ideal: 330, max: 360)
             } detail: {
                 CaptionBoardView(session: session)
             }
@@ -17,6 +19,74 @@ struct ContentView: View {
                     .padding(.top, 18)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button {
+                    requestCaptureToggle()
+                } label: {
+                    Label(captureButtonTitle, systemImage: captureButtonSystemImage)
+                }
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.roundedRectangle)
+                .tint(session.isRunning || session.isStarting ? .red : .accentColor)
+                .help(captureButtonTitle)
+                .accessibilityLabel(captureButtonTitle)
+                .accessibilityValue(session.statusMessage)
+
+                Button {
+                    togglePause()
+                } label: {
+                    Label(
+                        session.isPaused ? AppText.resume : AppText.pause,
+                        systemImage: session.isPaused ? "play.fill" : "pause.fill"
+                    )
+                }
+                .buttonBorderShape(.roundedRectangle)
+                .disabled(!session.isRunning)
+                .help(session.isPaused ? AppText.resume : AppText.pause)
+                .accessibilityLabel(session.isPaused ? AppText.resume : AppText.pause)
+            }
+
+            ToolbarSpacer(.fixed)
+
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button {
+                    toggleFloatingCaptions()
+                } label: {
+                    Label(AppText.floatingCaptions, systemImage: isFloatingCaptionVisible ? "captions.bubble.fill" : "captions.bubble")
+                }
+                .buttonBorderShape(.roundedRectangle)
+                .help(AppText.floatingCaptions)
+                .accessibilityLabel(AppText.floatingCaptions)
+                .accessibilityValue(isFloatingCaptionVisible ? AppText.floatingCaptionPowerOn : AppText.floatingCaptionPowerOff)
+                .accessibilityAddTraits(isFloatingCaptionVisible ? .isSelected : [])
+
+                Button {
+                    isLibraryPresented = true
+                } label: {
+                    Label(AppText.library, systemImage: "tray.full")
+                }
+                .buttonBorderShape(.roundedRectangle)
+                .help(AppText.manageSavedTranscripts)
+                .accessibilityLabel(AppText.library)
+
+                SettingsLink {
+                    Label(AppText.translationSettings, systemImage: "gearshape")
+                }
+                .buttonBorderShape(.roundedRectangle)
+                .help(AppText.configureTranslationSettings)
+                .accessibilityLabel(AppText.translationSettings)
+            }
+        }
+        .sheet(isPresented: $isLibraryPresented) {
+            TranscriptLibraryView(session: session)
+        }
+        .onAppear {
+            syncFloatingCaptionVisibility()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: FloatingCaptionWindowController.visibilityDidChangeNotification)) { _ in
+            syncFloatingCaptionVisibility()
         }
         .animation(.spring(response: 0.26, dampingFraction: 0.84), value: session.toastSequence)
         .animation(.easeOut(duration: 0.18), value: session.toastMessage)
@@ -43,6 +113,35 @@ struct ContentView: View {
                 )
             }
         }
+    }
+
+    private var captureButtonTitle: String {
+        session.isRunning || session.isStarting ? AppText.stop : AppText.start
+    }
+
+    private var captureButtonSystemImage: String {
+        session.isRunning || session.isStarting ? "stop.fill" : "play.fill"
+    }
+
+    private func requestCaptureToggle() {
+        if session.isRunning || session.isStarting {
+            session.stop()
+        } else {
+            session.start()
+        }
+    }
+
+    private func togglePause() {
+        session.isPaused ? session.resume() : session.pause()
+    }
+
+    private func toggleFloatingCaptions() {
+        FloatingCaptionWindowController.toggle(session: session)
+        syncFloatingCaptionVisibility()
+    }
+
+    private func syncFloatingCaptionVisibility() {
+        isFloatingCaptionVisible = FloatingCaptionWindowController.isOpen
     }
 
     private var autoDetectionLanguageChangeBinding: Binding<Bool> {

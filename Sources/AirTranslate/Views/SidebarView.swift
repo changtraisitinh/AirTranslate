@@ -11,14 +11,14 @@ struct SidebarView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 16) {
                 brandHeader
-                sessionCard
-                libraryCard
+                quickSettingsCard
+                detailsCard
+                storageRow
             }
-            .padding(12)
+            .padding(20)
         }
-        .background(.bar)
         .navigationTitle("AirTranslate")
         .sheet(isPresented: $isLibraryPresented) {
             TranscriptLibraryView(session: session)
@@ -38,74 +38,87 @@ struct SidebarView: View {
         HStack(spacing: 12) {
             AppIconMark()
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text(AppText.appName)
-                    .font(.title3.weight(.semibold))
+                    .font(.title2.weight(.semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
 
-                Text(AppText.appTagline)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                StatusPill(
+                    title: session.statusMessage,
+                    symbolName: statusSymbolName,
+                    color: statusColor
+                )
             }
 
             Spacer(minLength: 0)
 
-            HStack(spacing: 8) {
-                CaptureStatusIndicator(
-                    symbolName: statusSymbolName,
-                    color: statusColor,
-                    statusMessage: session.statusMessage
-                )
-
+            if needsPermissionAction {
                 Button {
                     session.openPrivacySettings()
                 } label: {
-                    Image(systemName: "gear")
+                    Image(systemName: "lock.shield.fill")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.orange)
+                        .frame(width: 28, height: 28)
+                        .background(Color.orange.opacity(0.13), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
-                .buttonStyle(.borderless)
-                .controlSize(.small)
+                .buttonStyle(.plain)
                 .help(AppText.openPrivacySettings)
                 .accessibilityLabel(AppText.openPrivacySettings)
-                .opacity(needsPermissionAction ? 1 : 0)
-                .disabled(!needsPermissionAction)
-                .accessibilityHidden(!needsPermissionAction)
             }
         }
-        .padding(12)
+        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 13, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.06))
         }
     }
 
-    private var sessionCard: some View {
+    private var quickSettingsCard: some View {
         SidebarCard(
-            title: session.isTranscribeOnlyMode ? AppText.transcriptionSettings : AppText.translationSettings,
+            title: quickSettingsTitle,
             headerAccessory: {
-                openConfigurationButton
+                Image(systemName: "chevron.up")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.secondary)
             }
         ) {
-            VStack(spacing: 10) {
-                languageControls
+            VStack(spacing: 0) {
+                QuickSettingRow(
+                    title: AppText.localized(english: "Language", korean: "언어", japanese: "言語", chineseSimplified: "语言"),
+                    systemImage: "globe"
+                ) {
+                    SidebarLanguageRouteControl(
+                        title: session.languageSummary,
+                        isAutoSourceEnabled: session.isAppleSourceAutoDetectionEnabled || usesOpenAIAutoLanguageFlow,
+                        sourceSelection: $session.sourceLanguage,
+                        targetSelection: $session.targetLanguage,
+                        isTranscribeOnlyMode: session.isTranscribeOnlyMode,
+                        isDisabled: session.isRunning,
+                        swap: swapLanguages
+                    )
+                }
 
-                LiveOutputModePicker(
-                    selection: liveOutputModeBinding,
-                    isDisabled: session.isRunning
-                )
+                SidebarDivider()
 
-                ProcessingEnginePicker(
-                    selection: processingEngineBinding,
-                    isDisabled: session.isRunning
-                )
-
-                AudioInputSourcePicker(
-                    selection: $session.audioInputSource,
-                    isDisabled: session.isRunning
-                )
+                QuickSettingRow(
+                    title: AppText.localized(english: "Audio", korean: "오디오", japanese: "オーディオ", chineseSimplified: "音频"),
+                    systemImage: "mic"
+                ) {
+                    Picker(AppText.audioInputSource, selection: $session.audioInputSource) {
+                        ForEach(AudioInputSource.allCases) { source in
+                            Text(source.title).tag(source)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .controlSize(.large)
+                    .disabled(session.isRunning)
+                    .accessibilityLabel(AppText.audioInputSource)
+                }
 
                 if session.audioInputSource == .microphone {
                     MicrophoneInputDevicePicker(
@@ -113,12 +126,27 @@ struct SidebarView: View {
                         devices: session.microphoneInputDevices,
                         isDisabled: session.isRunning
                     )
+                    .padding(.horizontal, 10)
+                    .padding(.bottom, 8)
                 }
 
-                SessionDurationRadioGroup(
-                    selection: $session.sessionDurationMode,
-                    isDisabled: session.isRunning
-                )
+                SidebarDivider()
+
+                QuickSettingRow(
+                    title: AppText.localized(english: "Output", korean: "출력", japanese: "出力", chineseSimplified: "输出"),
+                    systemImage: "viewfinder"
+                ) {
+                    Picker(AppText.outputMode, selection: liveOutputModeBinding) {
+                        ForEach(LiveOutputMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .controlSize(.large)
+                    .disabled(session.isRunning)
+                    .accessibilityLabel(AppText.outputMode)
+                }
             }
         }
         .onAppear {
@@ -130,139 +158,101 @@ struct SidebarView: View {
         }
     }
 
-    @ViewBuilder
-    private var languageControls: some View {
-        if session.isTranscribeOnlyMode {
-            transcriptionLanguageControls
-        } else if usesOpenAIAutoLanguageFlow {
-            VStack(alignment: .leading, spacing: 6) {
-                AutoLanguageRow(helpText: AppText.openAILanguageModeDescription)
-                PreferredLanguageRow(
-                    selection: $session.targetLanguage,
-                    isDisabled: session.isRunning
-                )
-                OpenAIVoiceOutputRow(isOn: $session.isDubbingEnabled)
-
-                Text(AppText.openAILanguageModeDescription)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 8)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        } else {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 6) {
-                    if session.isAppleSourceAutoDetectionEnabled {
-                        CompactAutoLanguagePicker(title: AppText.from)
-                    } else {
-                        CompactLanguagePicker(title: AppText.from, selection: $session.sourceLanguage)
-                    }
-
-                    Button {
-                        swapLanguages()
-                    } label: {
-                        Image(systemName: "arrow.left.arrow.right")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(Color.accentColor)
-                            .frame(width: 24, height: 24)
-                            .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(session.isRunning || session.isAppleSourceAutoDetectionEnabled)
-                    .help(AppText.swapLanguages)
-                    .accessibilityLabel(AppText.swapLanguages)
-
-                    CompactLanguagePicker(title: AppText.to, selection: $session.targetLanguage)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                CompactToggleRow(
-                    title: AppText.autoDetectInput,
-                    systemImage: "sparkles",
-                    isOn: appleSourceAutoDetectionBinding
-                )
-                .disabled(session.isRunning)
-                .help(
-                    session.isAppleSourceAutoDetectionAvailable
-                        ? AppText.appleAutoLanguageModeDescription
-                        : AppText.appleAutoLanguageModeUnavailableDescription
-                )
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    private var transcriptionLanguageControls: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                CompactLanguagePicker(title: AppText.from, selection: $session.sourceLanguage)
-                Spacer(minLength: 0)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var appleSourceAutoDetectionBinding: Binding<Bool> {
-        Binding(
-            get: {
-                session.isAppleSourceAutoDetectionAvailable
-                    && session.isAppleSourceAutoDetectionEnabled
-            },
-            set: { isEnabled in
-                guard session.isAppleSourceAutoDetectionAvailable else {
-                    session.showAppleSourceAutoDetectionUnavailableNotice()
-                    return
-                }
-
-                session.isAppleSourceAutoDetectionEnabled = isEnabled
-            }
-        )
-    }
-
-    private var openConfigurationButton: some View {
+    private var detailsCard: some View {
         Button {
-            if ProcessingEngine.current(for: session) == .gpt && !session.hasOpenAIAPIKey {
-                configurationNotice = AppText.openAIAPIKeyRequiredForGPTMode
-                shouldFocusOpenAIAPIKey = true
-            }
-            isConfigurationPresented = true
+            openConfiguration()
         } label: {
-            Image(systemName: "gearshape.fill")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 26, height: 26)
-                .background(Color.accentColor.opacity(0.13), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .strokeBorder(Color.accentColor.opacity(0.22), lineWidth: 1)
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(AppText.localized(english: "Details", korean: "세부 설정", japanese: "詳細設定", chineseSimplified: "详细设置"))
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.primary)
+
+                    Text("\(ProcessingEngine.current(for: session).title) · \(session.sessionDurationMode.title)")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "gearshape")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 30, height: 30)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.06))
+            }
         }
         .buttonStyle(.plain)
         .help(AppText.configureTranslationSettings)
         .accessibilityLabel(AppText.configureTranslationSettings)
+        .accessibilityValue("\(ProcessingEngine.current(for: session).title), \(session.sessionDurationMode.title)")
     }
 
-    private var processingEngineBinding: Binding<ProcessingEngine> {
-        Binding(
-            get: {
-                ProcessingEngine.current(for: session)
-            },
-            set: { engine in
-                switch engine {
-                case .apple:
-                    session.useAppleDefaultMode()
-                case .gpt:
-                    session.useGPTRealtimeMode()
-                    if !session.hasOpenAIAPIKey {
-                        configurationNotice = AppText.openAIAPIKeyRequiredForGPTMode
-                        shouldFocusOpenAIAPIKey = true
-                        isConfigurationPresented = true
-                    }
+    private var storageRow: some View {
+        Button {
+            isLibraryPresented = true
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "tray.full")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 42, height: 42)
+                    .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(AppText.library)
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(.primary)
+
+                    Text(AppText.manageSavedTranscripts)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "chevron.right")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.secondary)
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.06))
+            }
+        }
+        .buttonStyle(.plain)
+        .help(AppText.manageSavedTranscripts)
+        .accessibilityLabel(AppText.manageSavedTranscripts)
+    }
+
+    private var quickSettingsTitle: String {
+        AppText.localized(
+            english: "Quick Settings",
+            korean: "빠른 설정",
+            japanese: "クイック設定",
+            chineseSimplified: "快速设置"
         )
+    }
+
+    private func openConfiguration() {
+        if ProcessingEngine.current(for: session) == .gpt && !session.hasOpenAIAPIKey {
+            configurationNotice = AppText.openAIAPIKeyRequiredForGPTMode
+            shouldFocusOpenAIAPIKey = true
+        }
+        isConfigurationPresented = true
     }
 
     private var liveOutputModeBinding: Binding<LiveOutputMode> {
@@ -286,24 +276,6 @@ struct SidebarView: View {
         ProcessingEngine.current(for: session) == .gpt && session.isUsingOpenAIRealtimeTranslation
     }
 
-    private var libraryCard: some View {
-        SidebarCard(title: AppText.library) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(AppText.librarySummary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Button {
-                    isLibraryPresented = true
-                } label: {
-                    Label(AppText.manageSavedTranscripts, systemImage: "tray.full")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .controlSize(.small)
-            }
-        }
-    }
-
     private var needsPermissionAction: Bool {
         session.statusMessage.localizedCaseInsensitiveContains("permission")
             || session.statusMessage.localizedCaseInsensitiveContains("권한")
@@ -316,6 +288,9 @@ struct SidebarView: View {
         if session.isRunning {
             return "waveform.circle.fill"
         }
+        if session.statusMessage == AppText.ready {
+            return "circle.fill"
+        }
         return "circle.dotted"
     }
 
@@ -324,6 +299,9 @@ struct SidebarView: View {
             return .orange
         }
         if session.isRunning {
+            return .green
+        }
+        if session.statusMessage == AppText.ready {
             return .green
         }
         return .secondary
@@ -701,73 +679,146 @@ private struct OpenAIVoiceOutputRow: View {
     }
 }
 
-private struct ProcessingEnginePicker: View {
-    @Binding var selection: ProcessingEngine
-    let isDisabled: Bool
+private struct StatusPill: View {
+    let title: String
+    let symbolName: String
+    let color: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 7) {
-                Image(systemName: "switch.2")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 14)
-
-                Text(AppText.model)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-
-                Spacer(minLength: 0)
-            }
-
-            Picker(AppText.model, selection: $selection) {
-                ForEach(ProcessingEngine.allCases) { engine in
-                    Text(engine.title).tag(engine)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(maxWidth: .infinity)
-            .disabled(isDisabled)
-            .accessibilityLabel(AppText.model)
+        Label {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+        } icon: {
+            Image(systemName: symbolName)
+                .font(.caption2.weight(.bold))
         }
+        .foregroundStyle(color)
         .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+        .padding(.vertical, 4)
+        .background(color.opacity(0.14), in: Capsule())
+        .help(title)
+        .accessibilityLabel(title)
     }
 }
 
-private struct AudioInputSourcePicker: View {
-    @Binding var selection: AudioInputSource
-    let isDisabled: Bool
+private struct QuickSettingRow<Content: View>: View {
+    let title: String
+    let systemImage: String
+    @ViewBuilder let content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 7) {
-                Image(systemName: "waveform.badge.magnifyingglass")
-                    .font(.caption.weight(.bold))
+        HStack(spacing: 12) {
+            Label {
+                Text(title)
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+            } icon: {
+                Image(systemName: systemImage)
+                    .font(.callout.weight(.semibold))
                     .foregroundStyle(.secondary)
-                    .frame(width: 14)
-
-                Text(AppText.audioInputSource)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-
-                Spacer(minLength: 0)
+                    .frame(width: 20, height: 20)
             }
+            .labelStyle(.titleAndIcon)
+            .frame(width: 86, alignment: .leading)
 
-            Picker(AppText.audioInputSource, selection: $selection) {
-                ForEach(AudioInputSource.allCases) { source in
-                    Text(source.title).tag(source)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(maxWidth: .infinity)
-            .disabled(isDisabled)
-            .accessibilityLabel(AppText.audioInputSource)
+            content
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+            .padding(.horizontal, 16)
+        .padding(.vertical, 15)
+        .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
+    }
+}
+
+private struct SidebarDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(Color.primary.opacity(0.07))
+            .frame(height: 1)
+            .padding(.horizontal, 16)
+    }
+}
+
+private struct SidebarLanguageRouteControl: View {
+    let title: String
+    let isAutoSourceEnabled: Bool
+    @Binding var sourceSelection: LanguageOption
+    @Binding var targetSelection: LanguageOption
+    let isTranscribeOnlyMode: Bool
+    let isDisabled: Bool
+    let swap: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Menu {
+                if !isAutoSourceEnabled {
+                    Picker(AppText.from, selection: $sourceSelection) {
+                        ForEach(LanguageOption.supported) { language in
+                            Text(language.localizedTitle).tag(language)
+                        }
+                    }
+                }
+
+                if !isTranscribeOnlyMode {
+                    Picker(AppText.to, selection: $targetSelection) {
+                        ForEach(LanguageOption.supported) { language in
+                            Text(language.localizedTitle).tag(language)
+                        }
+                    }
+                }
+            } label: {
+                Text(title)
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            .menuIndicator(.hidden)
+            .buttonStyle(.plain)
+            .focusEffectDisabled()
+            .focusable(false)
+            .disabled(isDisabled)
+            .help(title)
+            .accessibilityLabel(languageRouteAccessibilityLabel)
+            .accessibilityValue(title)
+
+            if !isTranscribeOnlyMode {
+                Button {
+                    swap()
+                } label: {
+                    Image(systemName: "arrow.left.arrow.right")
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 34, height: 34)
+                        .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                .strokeBorder(Color.primary.opacity(0.12), lineWidth: 1)
+                        }
+                }
+                .buttonStyle(.plain)
+                .focusEffectDisabled()
+                .focusable(false)
+                .disabled(isDisabled || isAutoSourceEnabled)
+                .help(AppText.swapLanguages)
+                .accessibilityLabel(AppText.swapLanguages)
+            }
+        }
+    }
+
+    private var languageRouteAccessibilityLabel: String {
+        isTranscribeOnlyMode
+            ? AppText.from
+            : AppText.localized(
+                english: "Language pair",
+                korean: "언어 조합",
+                japanese: "言語ペア",
+                chineseSimplified: "语言组合"
+            )
     }
 }
 
@@ -1169,34 +1220,10 @@ private struct AppIconMark: View {
         Image(nsImage: appIcon)
             .resizable()
             .aspectRatio(contentMode: .fit)
-            .frame(width: 46, height: 46)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .frame(width: 58, height: 58)
+            .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
             .shadow(color: Color.black.opacity(0.16), radius: 5, x: 0, y: 2)
             .accessibilityHidden(true)
-    }
-}
-
-private struct CaptureStatusIndicator: View {
-    let symbolName: String
-    let color: Color
-    let statusMessage: String
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .fill(color.opacity(0.14))
-
-            Circle()
-                .strokeBorder(color.opacity(0.36), lineWidth: 1)
-
-            Image(systemName: symbolName)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(color)
-        }
-        .frame(width: 30, height: 30)
-        .help(statusMessage)
-        .accessibilityLabel(AppText.capture)
-        .accessibilityValue(statusMessage)
     }
 }
 
@@ -1367,9 +1394,8 @@ private struct SidebarCard<Content: View, HeaderAccessory: View>: View {
             if let title {
                 HStack(spacing: 8) {
                     Text(title)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .textCase(.uppercase)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.primary)
 
                     Spacer(minLength: 0)
 
@@ -1379,7 +1405,8 @@ private struct SidebarCard<Content: View, HeaderAccessory: View>: View {
 
             content
         }
-        .padding(12)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay {

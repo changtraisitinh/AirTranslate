@@ -220,4 +220,106 @@ struct TranslationSessionStoreLanguageCandidateTests {
         #expect(session.floatingCaptionDisplayMode == .original)
         #expect(session.availableFloatingCaptionDisplayModes == [.original])
     }
+
+    @Test
+    func startReadinessBlocksAppleStartWhenAssetsAreStillChecking() {
+        let readiness = StartReadinessPolicy.assess(
+            requiresOpenAIAPIKey: false,
+            hasOpenAIAPIKey: false,
+            requiredLocalModelAvailability: ModelAvailability(
+                state: .checking,
+                detail: "Checking"
+            )
+        )
+
+        #expect(readiness.issue == .localAssetsChecking)
+        #expect(!readiness.canStart)
+    }
+
+    @Test
+    func startReadinessBlocksAppleStartWhenAssetsNeedDownload() {
+        let readiness = StartReadinessPolicy.assess(
+            requiresOpenAIAPIKey: false,
+            hasOpenAIAPIKey: false,
+            requiredLocalModelAvailability: ModelAvailability(
+                state: .downloadRequired,
+                detail: "Download needed"
+            )
+        )
+
+        #expect(readiness.issue == .localAssetsDownloadRequired)
+        #expect(!readiness.canStart)
+    }
+
+    @Test
+    func startReadinessBlocksOpenAIStartWithoutAPIKey() {
+        let readiness = StartReadinessPolicy.assess(
+            requiresOpenAIAPIKey: true,
+            hasOpenAIAPIKey: false,
+            requiredLocalModelAvailability: nil
+        )
+
+        #expect(readiness.issue == .openAIAPIKeyMissing)
+        #expect(!readiness.canStart)
+    }
+
+    @Test
+    func startReadinessAllowsOpenAIStartWithAPIKeyWithoutLocalAssets() {
+        let readiness = StartReadinessPolicy.assess(
+            requiresOpenAIAPIKey: true,
+            hasOpenAIAPIKey: true,
+            requiredLocalModelAvailability: nil
+        )
+
+        #expect(readiness.canStart)
+    }
+
+    @Test
+    @MainActor
+    func startDownloadsRequiredAssetsWithoutClearingVisibleTranscript() async {
+        let downloadProbe = ModelAssetDownloadProbe()
+        let session = TranslationSessionStore(
+            modelAvailabilityProvider: { _, _ in [:] },
+            modelAssetDownloader: { model, _, _ in
+                await downloadProbe.record(model)
+                try await Task.sleep(for: .seconds(1))
+            }
+        )
+        let existingLine = CaptionLine(
+            sourceText: "Existing transcript should stay visible.",
+            translatedText: "기존 기록은 남아 있어야 합니다.",
+            createdAt: Date(),
+            isFinal: true
+        )
+        session.sourceLanguage = .english
+        session.targetLanguage = .korean
+        session.selectedModel = .appleSystem
+        session.lines = [existingLine]
+        session.modelAvailabilityByModelID[session.selectedModel.id] = ModelAvailability(
+            state: .downloadRequired,
+            detail: "Download needed"
+        )
+
+        session.start()
+        defer { session.stop() }
+        try? await Task.sleep(for: .milliseconds(50))
+
+        #expect(!session.isRunning)
+        #expect(session.isStarting)
+        #expect(session.lines == [existingLine])
+        #expect(session.statusMessage == "\(AppText.modelStatusDownloading): \(IntelligenceModel.appleSystem.title)")
+        #expect(await downloadProbe.modelIDs() == [IntelligenceModel.appleSystem.id])
+    }
+}
+
+private actor ModelAssetDownloadProbe {
+    private var models = [IntelligenceModel]()
+
+    func record(_ model: IntelligenceModel) {
+        models.append(model)
+    }
+
+    func modelIDs() -> [String] {
+        models.map(\.id)
+    }
 }
