@@ -196,6 +196,35 @@ enum AppText {
         english: "Add an OpenAI API key in Settings before using OpenAI Translation.",
         korean: "OpenAI 번역을 사용하려면 설정에서 OpenAI API 키를 먼저 입력하세요."
     )
+    static let geminiAPIKey = localized(english: "Gemini API Key", korean: "Gemini API 키")
+    static let geminiAPIKeyDescription = localized(
+        english: "AirTranslate stores this key in macOS Keychain and uses it only when Gemini translation is selected.",
+        korean: "AirTranslate는 이 키를 macOS Keychain에 저장하고 Gemini 번역을 선택했을 때만 사용합니다."
+    )
+    static let geminiAPIKeySaved = localized(
+        english: "Gemini API key saved in Keychain.",
+        korean: "Gemini API 키가 Keychain에 저장되었습니다."
+    )
+    static let geminiAPIKeyRemoved = localized(
+        english: "Gemini API key removed.",
+        korean: "Gemini API 키가 삭제되었습니다."
+    )
+    static let geminiAPIKeyConfigured = localized(
+        english: "Gemini API key saved",
+        korean: "Gemini API 키 저장됨",
+        japanese: "Gemini APIキー保存済み",
+        chineseSimplified: "Gemini API key 已保存"
+    )
+    static let geminiAPIKeyNotConfigured = localized(
+        english: "Gemini API key required",
+        korean: "Gemini API 키 필요",
+        japanese: "Gemini APIキーが必要",
+        chineseSimplified: "需要 Gemini API key"
+    )
+    static let geminiAPIKeyMissing = localized(
+        english: "Add a Gemini API key in Settings before using Gemini Translation.",
+        korean: "Gemini 번역을 사용하려면 설정에서 Gemini API 키를 먼저 입력하세요."
+    )
     static let startBlockedLocalAssetsChecking = localized(
         english: "Still checking local language assets. Try again in a moment.",
         korean: "로컬 언어 자산을 아직 확인하는 중입니다. 잠시 후 다시 시작하세요."
@@ -224,12 +253,27 @@ enum AppText {
         english: "The stored OpenAI API key could not be read.",
         korean: "저장된 OpenAI API 키를 읽을 수 없습니다."
     )
+    static let geminiAPIKeyEmpty = localized(
+        english: "Enter a Gemini API key before saving.",
+        korean: "저장하기 전에 Gemini API 키를 입력하세요."
+    )
+    static let geminiAPIKeyInvalidStoredValue = localized(
+        english: "The stored Gemini API key could not be read.",
+        korean: "저장된 Gemini API 키를 읽을 수 없습니다."
+    )
     static let appleProcessingMode = localized(english: "Apple Mode", korean: "Apple 기본 모드", japanese: "Apple標準モード", chineseSimplified: "Apple 默认模式")
     static let appleProcessingModeDescription = localized(
         english: "The default local workflow. Keep this as the base, then add OpenAI Realtime below only when needed.",
         korean: "기본 로컬 처리 흐름입니다. 이 설정을 기준으로 두고, 필요한 경우 아래 OpenAI Realtime만 추가하세요."
     )
     static let gptModels = localized(english: "OpenAI Realtime", korean: "OpenAI Realtime", japanese: "OpenAI Realtime", chineseSimplified: "OpenAI Realtime")
+    static let geminiModels = localized(english: "Gemini Translation", korean: "Gemini 번역", japanese: "Gemini翻訳", chineseSimplified: "Gemini 翻译")
+    static let geminiTranslationModel = localized(
+        english: "Translation Model",
+        korean: "번역 모델",
+        japanese: "翻訳モデル",
+        chineseSimplified: "翻译模型"
+    )
     static let gptTranscriptionModel = localized(
         english: "Transcription",
         korean: "전사",
@@ -245,6 +289,10 @@ enum AppText {
     static let gptModelsDescription = localized(
         english: "GPT mode uses OpenAI Realtime directly for the translated stream and bypasses local transcript cleanup.",
         korean: "GPT 모드는 OpenAI Realtime의 번역 스트림을 직접 사용하며 로컬 기록 다듬기를 건너뜁니다."
+    )
+    static let geminiModelsDescription = localized(
+        english: "Gemini mode keeps Apple Speech for transcription and sends only text segments to Gemini for translation.",
+        korean: "Gemini 모드는 전사는 Apple Speech를 유지하고 번역할 텍스트 조각만 Gemini로 보냅니다."
     )
     static let openAINativeOutput = localized(
         english: "OpenAI native output",
@@ -305,6 +353,18 @@ enum AppText {
         korean: "OpenAI API 플랫폼 열기",
         japanese: "OpenAI API Platformを開く",
         chineseSimplified: "打开 OpenAI API 平台"
+    )
+    static let geminiAPIKeyPlatformPrompt = localized(
+        english: "Need a key?",
+        korean: "키가 필요하신가요?",
+        japanese: "キーが必要ですか？",
+        chineseSimplified: "需要 key 吗？"
+    )
+    static let geminiAPIKeyPlatformLink = localized(
+        english: "Open Google AI Studio",
+        korean: "Google AI Studio 열기",
+        japanese: "Google AI Studioを開く",
+        chineseSimplified: "打开 Google AI Studio"
     )
     static let openAIRealtimeTranslationOnlySource = localized(
         english: "OpenAI realtime translation",
@@ -651,7 +711,21 @@ enum AppText {
         )
     }
 
+    static func geminiTranslationInstructions(source: String, target: String) -> String {
+        localized(
+            english: "Translate from \(source) to \(target). Return only the translated text. Preserve paragraph breaks, line breaks, names, numbers, and technical terms when appropriate.",
+            korean: "\(source)에서 \(target)로 번역하세요. 번역문만 반환하고 문단, 줄바꿈, 이름, 숫자, 기술 용어는 필요한 경우 유지하세요."
+        )
+    }
+
     static func openAIAPIKeychainFailed(_ status: OSStatus) -> String {
+        localized(
+            english: "Keychain operation failed: \(status).",
+            korean: "Keychain 작업 실패: \(status)."
+        )
+    }
+
+    static func geminiAPIKeychainFailed(_ status: OSStatus) -> String {
         localized(
             english: "Keychain operation failed: \(status).",
             korean: "Keychain 작업 실패: \(status)."
@@ -672,6 +746,23 @@ enum AppText {
         return localized(
             english: "OpenAI request failed (\(statusCode))\(detail)",
             korean: "OpenAI 요청 실패(\(statusCode))\(detail)"
+        )
+    }
+
+    static let geminiInvalidResponse = localized(
+        english: "Gemini returned an invalid response.",
+        korean: "Gemini가 올바르지 않은 응답을 반환했습니다."
+    )
+    static let geminiEmptyOutput = localized(
+        english: "Gemini returned no translated text.",
+        korean: "Gemini가 번역 텍스트를 반환하지 않았습니다."
+    )
+
+    static func geminiRequestFailed(statusCode: Int, message: String?) -> String {
+        let detail = message.map { ": \($0)" } ?? ""
+        return localized(
+            english: "Gemini request failed (\(statusCode))\(detail)",
+            korean: "Gemini 요청 실패(\(statusCode))\(detail)"
         )
     }
 

@@ -2,9 +2,11 @@ import SwiftUI
 
 struct SettingsView: View {
     @Bindable var session: TranslationSessionStore
-    @SceneStorage("AirTranslate.SettingsView.selectedCategory") private var selectedCategoryID = SettingsCategory.floatingCaptions.rawValue
+    @SceneStorage("AirTranslate.SettingsView.selectedCategory") private var selectedCategoryID = SettingsCategory.general.rawValue
     @State private var openAIAPIKey = ""
     @State private var apiKeyFeedback: String?
+    @State private var geminiAPIKey = ""
+    @State private var geminiKeyFeedback: String?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -32,7 +34,7 @@ struct SettingsView: View {
 
     private var selectedCategory: Binding<SettingsCategory> {
         Binding {
-            SettingsCategory(rawValue: selectedCategoryID) ?? .floatingCaptions
+            SettingsCategory(rawValue: selectedCategoryID) ?? .general
         } set: { category in
             selectedCategoryID = category.rawValue
         }
@@ -67,18 +69,42 @@ struct SettingsView: View {
             }
 
             SettingsControlRow(
-                title: AppText.model,
-                detail: SettingsCopy.processingModeDetail,
+                title: SettingsCopy.processingEngine,
+                detail: SettingsCopy.processingEngineDetail,
                 systemImage: "switch.2"
             ) {
-                Picker(AppText.model, selection: $session.selectedModel) {
+                Picker(SettingsCopy.processingEngine, selection: processingModeSelection) {
+                    ForEach(SettingsProcessingMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 270)
+                .disabled(session.isRunning)
+            }
+
+            if processingModeSelection.wrappedValue == .openAI, !session.hasOpenAIAPIKey {
+                SettingsNoticeRow(text: AppText.openAIAPIKeyRequiredForGPTMode, systemImage: "key")
+            }
+
+            if processingModeSelection.wrappedValue == .gemini, !session.hasGeminiAPIKey {
+                SettingsNoticeRow(text: AppText.geminiAPIKeyMissing, systemImage: "key")
+            }
+
+            SettingsControlRow(
+                title: SettingsCopy.appleWorkflow,
+                detail: SettingsCopy.appleWorkflowDetail,
+                systemImage: "captions.bubble"
+            ) {
+                Picker(AppText.model, selection: modelSelection) {
                     ForEach(IntelligenceModel.allCases) { model in
                         Text(model.title).tag(model)
                     }
                 }
                 .labelsHidden()
                 .frame(width: 220)
-                .disabled(session.isRunning)
+                .disabled(session.isRunning || selectedProcessingMode != .apple)
             }
 
             SettingsValueRow(
@@ -137,7 +163,7 @@ struct SettingsView: View {
 
                     Text(apiKeyFeedback ?? (session.hasOpenAIAPIKey ? AppText.openAIAPIKeyConfigured : AppText.openAIAPIKeyNotConfigured))
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(apiKeyFeedback == nil && !session.hasOpenAIAPIKey ? Color.orange : statusColor)
+                        .foregroundStyle(apiKeyFeedback == nil && !session.hasOpenAIAPIKey ? Color.orange : openAIStatusColor)
                 }
                 .padding(.leading, 34)
                 .accessibilityElement(children: .combine)
@@ -164,7 +190,7 @@ struct SettingsView: View {
                 }
                 .labelsHidden()
                 .frame(width: 220)
-                .disabled(session.isRunning)
+                .disabled(session.isRunning || selectedProcessingMode != .openAI)
             }
 
             SettingsControlRow(
@@ -179,7 +205,7 @@ struct SettingsView: View {
                 }
                 .labelsHidden()
                 .frame(width: 220)
-                .disabled(session.isRunning)
+                .disabled(session.isRunning || selectedProcessingMode != .openAI)
             }
         }
     }
@@ -442,6 +468,104 @@ struct SettingsView: View {
             }
 
             apiSettings
+            geminiSettings
+        }
+    }
+
+    private var geminiSettings: some View {
+        SettingsGroup(title: AppText.geminiModels) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 10) {
+                    Image(systemName: "key.fill")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(session.hasGeminiAPIKey ? Color.green : Color.secondary)
+                        .frame(width: 24)
+
+                    SecureField(AppText.openAIAPIKeyPlaceholder, text: $geminiAPIKey)
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityLabel(AppText.geminiAPIKey)
+
+                    Button {
+                        saveGeminiAPIKey()
+                    } label: {
+                        Image(systemName: "checkmark.circle.fill")
+                    }
+                    .disabled(geminiAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .help(AppText.saveOpenAIAPIKey)
+                    .accessibilityLabel(AppText.saveOpenAIAPIKey)
+
+                    Button {
+                        removeGeminiAPIKey()
+                    } label: {
+                        Image(systemName: "trash")
+                    }
+                    .disabled(!session.hasGeminiAPIKey)
+                    .help(AppText.removeOpenAIAPIKey)
+                    .accessibilityLabel(AppText.removeOpenAIAPIKey)
+                }
+
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(session.hasGeminiAPIKey ? Color.green : Color.orange)
+                        .frame(width: 7, height: 7)
+
+                    Text(geminiKeyFeedback ?? (session.hasGeminiAPIKey ? AppText.geminiAPIKeyConfigured : AppText.geminiAPIKeyNotConfigured))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(geminiKeyFeedback == nil && !session.hasGeminiAPIKey ? Color.orange : geminiStatusColor)
+                }
+                .padding(.leading, 34)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(geminiKeyFeedback ?? (session.hasGeminiAPIKey ? AppText.geminiAPIKeyConfigured : AppText.geminiAPIKeyNotConfigured))
+
+                Text(AppText.geminiAPIKeyDescription)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, 34)
+            }
+            .padding(.horizontal, 4)
+            .padding(.vertical, 3)
+
+            SettingsControlRow(
+                title: AppText.geminiTranslationModel,
+                detail: SettingsCopy.geminiTranslationDetail,
+                systemImage: "sparkles"
+            ) {
+                Picker(AppText.geminiTranslationModel, selection: $session.geminiTranslationModel) {
+                    ForEach(GeminiTranslationModel.allCases) { model in
+                        Text(model.title).tag(model)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 220)
+                .disabled(session.isRunning || selectedProcessingMode != .gemini)
+            }
+        }
+    }
+
+    private var selectedProcessingMode: SettingsProcessingMode {
+        if session.isUsingOpenAIRealtime {
+            return .openAI
+        }
+        if session.isUsingGeminiTranslation {
+            return .gemini
+        }
+        return .apple
+    }
+
+    private var processingModeSelection: Binding<SettingsProcessingMode> {
+        Binding {
+            selectedProcessingMode
+        } set: { mode in
+            guard !session.isRunning else { return }
+            switch mode {
+            case .apple:
+                session.useAppleDefaultMode()
+            case .openAI:
+                session.useGPTRealtimeMode()
+            case .gemini:
+                session.useGeminiTranslationMode()
+            }
         }
     }
 
@@ -453,7 +577,20 @@ struct SettingsView: View {
         }
     }
 
-    private var statusColor: Color {
+    private var modelSelection: Binding<IntelligenceModel> {
+        Binding {
+            session.selectedModel
+        } set: { model in
+            switch model {
+            case .appleSpeechOnly:
+                session.useTranscribeOnlyMode()
+            case .appleSystem, .appleOnDevice:
+                session.useAppleDefaultMode()
+            }
+        }
+    }
+
+    private var openAIStatusColor: Color {
         guard let apiKeyFeedback else {
             return session.hasOpenAIAPIKey ? .green : .orange
         }
@@ -462,6 +599,20 @@ struct SettingsView: View {
             return .green
         }
         if apiKeyFeedback == AppText.openAIAPIKeyRemoved {
+            return .orange
+        }
+        return .red
+    }
+
+    private var geminiStatusColor: Color {
+        guard let geminiKeyFeedback else {
+            return session.hasGeminiAPIKey ? .green : .orange
+        }
+
+        if geminiKeyFeedback == AppText.geminiAPIKeySaved {
+            return .green
+        }
+        if geminiKeyFeedback == AppText.geminiAPIKeyRemoved {
             return .orange
         }
         return .red
@@ -477,6 +628,37 @@ struct SettingsView: View {
         session.removeOpenAIAPIKey()
         apiKeyFeedback = session.statusMessage
         openAIAPIKey = ""
+    }
+
+    private func saveGeminiAPIKey() {
+        session.saveGeminiAPIKey(geminiAPIKey)
+        geminiKeyFeedback = session.statusMessage
+        geminiAPIKey = ""
+    }
+
+    private func removeGeminiAPIKey() {
+        session.removeGeminiAPIKey()
+        geminiKeyFeedback = session.statusMessage
+        geminiAPIKey = ""
+    }
+}
+
+private enum SettingsProcessingMode: String, CaseIterable, Identifiable {
+    case apple
+    case openAI
+    case gemini
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .apple:
+            AppText.appleProcessingMode
+        case .openAI:
+            AppText.localized(english: "OpenAI API", korean: "OpenAI API")
+        case .gemini:
+            AppText.localized(english: "Gemini API", korean: "Gemini API")
+        }
     }
 }
 
@@ -594,9 +776,15 @@ private enum SettingsCopy {
         korean: "로컬 우선 동작과 개인정보 안내를 확인합니다."
     )
     static let modeSettings = AppText.localized(english: "Mode Settings", korean: "모드 설정")
-    static let processingModeDetail = AppText.localized(
-        english: "Changing the processing path is disabled while capture is running.",
-        korean: "캡처 중에는 처리 방식을 변경할 수 없습니다."
+    static let processingEngine = AppText.localized(english: "Processing Mode", korean: "처리 방식")
+    static let processingEngineDetail = AppText.localized(
+        english: "Choose exactly one active engine: local Apple mode, OpenAI API, or Gemini API.",
+        korean: "Apple 기본 모드, OpenAI API, Gemini API 중 하나만 활성화합니다."
+    )
+    static let appleWorkflow = AppText.localized(english: "Apple Workflow", korean: "Apple 세션 방식")
+    static let appleWorkflowDetail = AppText.localized(
+        english: "Available in Apple mode. Choose translated captions or source-only transcription.",
+        korean: "Apple 모드에서만 사용합니다. 번역 자막 또는 원문 전사만 중에서 선택합니다."
     )
     static let languagePairDetail = AppText.localized(
         english: "Language pair is changed from the quick settings sidebar.",
@@ -621,6 +809,10 @@ private enum SettingsCopy {
     static let gptTranslationDetail = AppText.localized(
         english: "Use Apple Translation by default, or enable OpenAI Realtime translation.",
         korean: "기본은 Apple Translation이며 필요할 때 OpenAI Realtime 번역을 켭니다."
+    )
+    static let geminiTranslationDetail = AppText.localized(
+        english: "Use Apple Speech for transcription, then translate text with Gemini 3.5 Flash.",
+        korean: "전사는 Apple Speech를 사용하고 텍스트 번역만 Gemini 3.5 Flash로 처리합니다."
     )
     static let audioInputDetail = AppText.localized(
         english: "Mac audio captures system playback. Microphone captures the selected input device.",
@@ -666,8 +858,8 @@ private enum SettingsCopy {
     static let localFirst = AppText.localized(english: "Local first", korean: "로컬 우선")
     static let privacy = AppText.localized(english: "Privacy", korean: "개인정보")
     static let privacyDetail = AppText.localized(
-        english: "Apple mode runs locally. OpenAI Realtime is used only after you provide an API key.",
-        korean: "Apple 모드는 로컬에서 실행됩니다. OpenAI Realtime은 사용자가 API 키를 제공한 뒤에만 사용됩니다."
+        english: "Apple mode runs locally. OpenAI and Gemini are used only after you provide a matching API key and select that mode.",
+        korean: "Apple 모드는 로컬에서 실행됩니다. OpenAI와 Gemini는 해당 API 키를 저장하고 해당 모드를 선택했을 때만 사용됩니다."
     )
     static let keychain = AppText.localized(english: "Keychain", korean: "Keychain")
     static let selected = AppText.localized(english: "Selected", korean: "선택됨")

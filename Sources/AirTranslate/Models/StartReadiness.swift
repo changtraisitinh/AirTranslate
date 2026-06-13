@@ -2,6 +2,7 @@ import Foundation
 
 enum StartReadinessIssue: Equatable {
     case openAIAPIKeyMissing
+    case geminiAPIKeyMissing
     case localAssetsChecking
     case localAssetsDownloadRequired
     case localAssetsUnavailable(String)
@@ -19,10 +20,15 @@ enum StartReadinessPolicy {
     static func assess(
         requiresOpenAIAPIKey: Bool,
         hasOpenAIAPIKey: Bool,
+        requiresGeminiAPIKey: Bool = false,
+        hasGeminiAPIKey: Bool = false,
         requiredLocalModelAvailability: ModelAvailability?
     ) -> StartReadinessAssessment {
         if requiresOpenAIAPIKey, !hasOpenAIAPIKey {
             return StartReadinessAssessment(issue: .openAIAPIKeyMissing)
+        }
+        if requiresGeminiAPIKey, !hasGeminiAPIKey {
+            return StartReadinessAssessment(issue: .geminiAPIKeyMissing)
         }
 
         guard let requiredLocalModelAvailability else {

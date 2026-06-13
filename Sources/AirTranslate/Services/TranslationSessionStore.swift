@@ -10,6 +10,7 @@ private enum SettingsKey {
     static let selectedModelID = "selectedModelID"
     static let openAITranscriptionModelID = "openAITranscriptionModelID"
     static let openAITranslationModelID = "openAITranslationModelID"
+    static let geminiTranslationModelID = "geminiTranslationModelID"
     static let isDubbingEnabled = "isDubbingEnabled"
     static let isTranscriptLintEnabled = "isTranscriptLintEnabled"
     static let floatingCaptionDisplayMode = "floatingCaptionDisplayMode"
@@ -135,10 +136,12 @@ final class TranslationSessionStore {
         }
     }
     var hasOpenAIAPIKey = OpenAIAPIKeyStore.hasAPIKey()
+    var hasGeminiAPIKey = GeminiAPIKeyStore.hasAPIKey()
     var openAITranscriptionModel = OpenAIRealtimeTranscriptionModel.off {
         didSet {
             if openAITranscriptionModel.isEnabled {
                 isTranscriptLintEnabled = false
+                geminiTranslationModel = .off
             }
             persistSelectedSettings()
             resetTranslationCache()
@@ -149,6 +152,21 @@ final class TranslationSessionStore {
         didSet {
             if openAITranslationModel.isEnabled {
                 isTranscriptLintEnabled = false
+                geminiTranslationModel = .off
+            }
+            persistSelectedSettings()
+            resetTranslationCache()
+            resetDubbingProgress()
+            refreshModelAvailability()
+        }
+    }
+    var geminiTranslationModel = GeminiTranslationModel.off {
+        didSet {
+            if geminiTranslationModel.isEnabled {
+                selectedModel = .appleSystem
+                openAITranscriptionModel = .off
+                openAITranslationModel = .off
+                restoreFloatingCaptionDisplayModeAfterTranscribeOnly()
             }
             persistSelectedSettings()
             resetTranslationCache()
@@ -225,6 +243,7 @@ final class TranslationSessionStore {
     @ObservationIgnored nonisolated(unsafe) private var openAITranscriber = OpenAIRealtimeTranscriber()
     private let translator = AppleTranslationService()
     private let openAITranslator = OpenAITranslationService()
+    private let geminiTranslator = GeminiTranslationService()
     private let foundationTranscriptPolisher = FoundationTranscriptPolisher()
     private let speechOutput = TranslatedSpeechOutput()
     private let openAIRealtimeAudioOutput = OpenAIRealtimeAudioOutput()
@@ -302,8 +321,12 @@ final class TranslationSessionStore {
         openAITranslationModel.usesRealtimeAudioTranslation
     }
 
+    var isUsingGeminiTranslation: Bool {
+        geminiTranslationModel.isEnabled
+    }
+
     var isTranscribeOnlyMode: Bool {
-        selectedModel == .appleSpeechOnly && !isUsingOpenAIRealtime
+        selectedModel == .appleSpeechOnly && !isUsingOpenAIRealtime && !isUsingGeminiTranslation
     }
 
     var liveOutputMode: LiveOutputMode {
@@ -484,6 +507,8 @@ final class TranslationSessionStore {
         StartReadinessPolicy.assess(
             requiresOpenAIAPIKey: isUsingOpenAIRealtime,
             hasOpenAIAPIKey: hasOpenAIAPIKey,
+            requiresGeminiAPIKey: isUsingGeminiTranslation,
+            hasGeminiAPIKey: hasGeminiAPIKey,
             requiredLocalModelAvailability: requiredLocalModelForStart.map { modelAvailability(for: $0) }
         )
     }
@@ -495,6 +520,9 @@ final class TranslationSessionStore {
         if openAITranscriptionModel.isEnabled {
             return isTranscribeOnlyMode ? nil : .appleOnDevice
         }
+        if isUsingGeminiTranslation {
+            return .appleSpeechOnly
+        }
         return selectedModel
     }
 
@@ -504,6 +532,8 @@ final class TranslationSessionStore {
             return AppText.ready
         case .openAIAPIKeyMissing:
             return AppText.openAIAPIKeyRequiredForGPTMode
+        case .geminiAPIKeyMissing:
+            return AppText.geminiAPIKeyMissing
         case .localAssetsChecking:
             return AppText.startBlockedLocalAssetsChecking
         case .localAssetsDownloadRequired:
@@ -630,6 +660,28 @@ final class TranslationSessionStore {
         }
     }
 
+    func saveGeminiAPIKey(_ key: String) {
+        do {
+            try GeminiAPIKeyStore.saveAPIKey(key)
+            hasGeminiAPIKey = true
+            statusMessage = AppText.geminiAPIKeySaved
+            refreshModelAvailability()
+        } catch {
+            statusMessage = error.localizedDescription
+        }
+    }
+
+    func removeGeminiAPIKey() {
+        do {
+            try GeminiAPIKeyStore.deleteAPIKey()
+            hasGeminiAPIKey = false
+            statusMessage = AppText.geminiAPIKeyRemoved
+            refreshModelAvailability()
+        } catch {
+            statusMessage = error.localizedDescription
+        }
+    }
+
     func openTranscriptsFolder() {
         do {
             try FileManager.default.createDirectory(
@@ -678,11 +730,13 @@ final class TranslationSessionStore {
         selectedModel = .appleSystem
         openAITranscriptionModel = .off
         openAITranslationModel = .off
+        geminiTranslationModel = .off
     }
 
     func useGPTRealtimeMode() {
         clearTranscribeOnlyNotice(resetActivation: true)
         selectedModel = .appleSystem
+        geminiTranslationModel = .off
         isTranscriptLintEnabled = false
         if !openAITranscriptionModel.isEnabled {
             openAITranscriptionModel = .gptRealtimeWhisper
@@ -691,6 +745,17 @@ final class TranslationSessionStore {
             openAITranslationModel = .gptRealtimeTranslate
         }
         usePreferredLanguageForOpenAIOutput()
+    }
+
+    func useGeminiTranslationMode() {
+        clearTranscribeOnlyNotice(resetActivation: true)
+        selectedModel = .appleSystem
+        openAITranscriptionModel = .off
+        openAITranslationModel = .off
+        if !geminiTranslationModel.isEnabled {
+            geminiTranslationModel = .gemini35Flash
+        }
+        restoreFloatingCaptionDisplayModeAfterTranscribeOnly()
     }
 
     func useLiveOutputMode(_ mode: LiveOutputMode) {
@@ -717,13 +782,14 @@ final class TranslationSessionStore {
         floatingCaptionDisplayMode = .original
         openAITranscriptionModel = .off
         openAITranslationModel = .off
+        geminiTranslationModel = .off
         isDubbingEnabled = false
         selectedModel = .appleSpeechOnly
         clearTranscribeOnlyNotice(resetActivation: true)
     }
 
     private func syncLiveOutputModeWithLanguagePair() {
-        guard !isRestoringSelectedSettings, !isRunning, !isUsingOpenAIRealtime else { return }
+        guard !isRestoringSelectedSettings, !isRunning, !isUsingOpenAIRealtime, !isUsingGeminiTranslation else { return }
 
         if selectedModel == .appleSpeechOnly {
             if targetLanguage != sourceLanguage {
@@ -1161,7 +1227,7 @@ final class TranslationSessionStore {
     }
 
     private func warmTranslationSession() {
-        guard !openAITranslationModel.isEnabled else { return }
+        guard !openAITranslationModel.isEnabled, !geminiTranslationModel.isEnabled else { return }
 
         let warmSourceLanguage = sourceLanguage
         let warmTargetLanguage = targetLanguage
@@ -1226,6 +1292,10 @@ final class TranslationSessionStore {
            let model = OpenAIRealtimeTranslationModel(rawValue: modelID) {
             openAITranslationModel = model
         }
+        if let modelID = defaults.string(forKey: SettingsKey.geminiTranslationModelID),
+           let model = GeminiTranslationModel(rawValue: modelID) {
+            geminiTranslationModel = model
+        }
         if defaults.object(forKey: SettingsKey.isDubbingEnabled) != nil {
             isDubbingEnabled = defaults.bool(forKey: SettingsKey.isDubbingEnabled)
         }
@@ -1283,6 +1353,7 @@ final class TranslationSessionStore {
         defaults.set(selectedModel.id, forKey: SettingsKey.selectedModelID)
         defaults.set(openAITranscriptionModel.id, forKey: SettingsKey.openAITranscriptionModelID)
         defaults.set(openAITranslationModel.id, forKey: SettingsKey.openAITranslationModelID)
+        defaults.set(geminiTranslationModel.id, forKey: SettingsKey.geminiTranslationModelID)
         defaults.set(isDubbingEnabled, forKey: SettingsKey.isDubbingEnabled)
         defaults.set(isTranscriptLintEnabled, forKey: SettingsKey.isTranscriptLintEnabled)
         defaults.set(floatingCaptionDisplayMode.id, forKey: SettingsKey.floatingCaptionDisplayMode)
@@ -2607,7 +2678,14 @@ final class TranslationSessionStore {
                 }
 
                 let translatedSegment: String
-                if openAITranslationModel.isEnabled && !openAITranslationModel.usesRealtimeAudioTranslation {
+                if geminiTranslationModel.isEnabled {
+                    translatedSegment = try await geminiTranslator.translate(
+                        segment,
+                        source: source,
+                        target: target,
+                        model: geminiTranslationModel
+                    )
+                } else if openAITranslationModel.isEnabled && !openAITranslationModel.usesRealtimeAudioTranslation {
                     translatedSegment = try await openAITranslator.translate(
                         segment,
                         source: source,
@@ -2635,7 +2713,17 @@ final class TranslationSessionStore {
     }
 
     private func translationCacheKey(segment: String, source: LanguageOption, target: LanguageOption) -> String {
-        "\(source.id)\t\(target.id)\t\(selectedModel.id)\t\(segment)"
+        "\(source.id)\t\(target.id)\t\(translationEngineCacheID)\t\(segment)"
+    }
+
+    private var translationEngineCacheID: String {
+        if geminiTranslationModel.isEnabled {
+            return "gemini:\(geminiTranslationModel.id)"
+        }
+        if openAITranslationModel.isEnabled {
+            return "openai:\(openAITranslationModel.id)"
+        }
+        return "apple:\(selectedModel.id)"
     }
 
     private func cacheTranslatedSegment(_ segment: String, forKey key: String) {

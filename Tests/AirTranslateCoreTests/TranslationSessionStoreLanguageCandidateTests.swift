@@ -271,6 +271,24 @@ struct TranslationSessionStoreLanguageCandidateTests {
     }
 
     @Test
+    @MainActor
+    func geminiModeUsesAppleSpeechAndDisablesRealtimeProviders() {
+        let session = TranslationSessionStore()
+        session.useGPTRealtimeMode()
+
+        session.useGeminiTranslationMode()
+
+        #expect(session.selectedModel == .appleSystem)
+        #expect(session.geminiTranslationModel == .gemini35Flash)
+        #expect(!session.openAITranscriptionModel.isEnabled)
+        #expect(!session.openAITranslationModel.isEnabled)
+        #expect(session.liveOutputMode == .translation)
+
+        session.useAppleDefaultMode()
+        #expect(session.geminiTranslationModel == .off)
+    }
+
+    @Test
     func startReadinessBlocksAppleStartWhenAssetsAreStillChecking() {
         let readiness = StartReadinessPolicy.assess(
             requiresOpenAIAPIKey: false,
@@ -317,6 +335,33 @@ struct TranslationSessionStoreLanguageCandidateTests {
         let readiness = StartReadinessPolicy.assess(
             requiresOpenAIAPIKey: true,
             hasOpenAIAPIKey: true,
+            requiredLocalModelAvailability: nil
+        )
+
+        #expect(readiness.canStart)
+    }
+
+    @Test
+    func startReadinessBlocksGeminiStartWithoutAPIKey() {
+        let readiness = StartReadinessPolicy.assess(
+            requiresOpenAIAPIKey: false,
+            hasOpenAIAPIKey: false,
+            requiresGeminiAPIKey: true,
+            hasGeminiAPIKey: false,
+            requiredLocalModelAvailability: nil
+        )
+
+        #expect(readiness.issue == .geminiAPIKeyMissing)
+        #expect(!readiness.canStart)
+    }
+
+    @Test
+    func startReadinessAllowsGeminiStartWithAPIKeyWithoutTranslationAssets() {
+        let readiness = StartReadinessPolicy.assess(
+            requiresOpenAIAPIKey: false,
+            hasOpenAIAPIKey: false,
+            requiresGeminiAPIKey: true,
+            hasGeminiAPIKey: true,
             requiredLocalModelAvailability: nil
         )
 

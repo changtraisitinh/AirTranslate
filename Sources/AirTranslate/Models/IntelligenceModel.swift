@@ -133,3 +133,37 @@ enum OpenAIRealtimeTranslationModel: String, CaseIterable, Identifiable {
         }
     }
 }
+
+enum GeminiTranslationModel: String, CaseIterable, Identifiable, Sendable {
+    case off
+    case gemini35Flash = "gemini-3.5-flash"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .off:
+            AppText.localized(
+                english: "Use Apple Translation",
+                korean: "Apple Translation 사용",
+                japanese: "Apple Translationを使用",
+                chineseSimplified: "使用 Apple Translation"
+            )
+        case .gemini35Flash:
+            "Gemini 3.5 Flash"
+        }
+    }
+
+    var isEnabled: Bool {
+        self != .off
+    }
+
+    var apiModelID: String {
+        switch self {
+        case .off:
+            ""
+        case .gemini35Flash:
+            rawValue
+        }
+    }
+}
