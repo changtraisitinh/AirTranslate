@@ -6,6 +6,20 @@ All notable changes to AirTranslate are documented in this file.
 
 No unreleased changes yet.
 
+## 1.3.5 - 2026-06-13
+
+### Changed
+
+- Saved transcript history now loads lightweight previews first and opens full text only when a transcript is selected.
+- Realtime GPT transcript updates are coalesced to reduce MainActor and UI churn during long sessions.
+- Realtime audio send backlog is bounded so stalled websocket sends cannot accumulate without limit.
+- Capture start now waits for previous stop teardown before opening a new capture session.
+
+### Fixed
+
+- Very large transcript panes now render a bounded display tail even in standard session mode while preserving the full saved text.
+- GPT translated audio output now decodes base64 audio on the audio queue instead of the MainActor path.
+
 ## 1.3.4 - 2026-05-26
 
 ### Changed
