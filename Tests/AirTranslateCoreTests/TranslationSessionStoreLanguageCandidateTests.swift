@@ -142,6 +142,55 @@ struct TranslationSessionStoreLanguageCandidateTests {
     }
 
     @Test
+    func veryLargeCaptionLineTrimsDisplayEvenInStandardMode() {
+        let text = (1...500)
+            .map { "Standard session can still receive a very long realtime transcript line \($0)." }
+            .joined(separator: "\n")
+        let line = CaptionLine(
+            sourceText: text,
+            translatedText: text,
+            createdAt: Date(),
+            isFinal: false
+        )
+
+        #expect(line.sourceText == text)
+        #expect(line.translatedText == text)
+        #expect(line.sourceDisplayText != text)
+        #expect(line.translatedDisplayText != text)
+        #expect(line.sourceDisplayText.hasPrefix("..."))
+        #expect(line.translatedDisplayText.hasPrefix("..."))
+    }
+
+    @Test
+    @MainActor
+    func savedTranscriptContentsLoadOnlyWhenSelected() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("AirTranslateTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let tailMarker = "TAIL_MARKER_AFTER_PREVIEW"
+        let text = "Launch title\n"
+            + String(repeating: "Preview filler keeps this saved transcript large.\n", count: 200)
+            + tailMarker
+        let fileURL = directory.appendingPathComponent("2026-06-13_Launch-title.txt")
+        try text.write(to: fileURL, atomically: true, encoding: .utf8)
+
+        let session = TranslationSessionStore(
+            modelAvailabilityProvider: { _, _ in [:] },
+            transcriptsDirectoryURL: directory
+        )
+        let transcript = try #require(session.savedTranscripts.first)
+
+        #expect(transcript.title == "Launch title")
+        #expect(!transcript.sourceText.contains(tailMarker))
+
+        session.selectSavedTranscript(transcript.id)
+
+        #expect(session.savedDraftSourceText.contains(tailMarker))
+    }
+
+    @Test
     @MainActor
     func transcribeOnlyModeHidesTranslationPane() {
         let session = TranslationSessionStore()

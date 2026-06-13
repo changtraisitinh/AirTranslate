@@ -228,6 +228,7 @@ final class TranslationSessionStore {
     private let spellDocumentTag = NSSpellChecker.uniqueSpellDocumentTag()
     private let modelAvailabilityProvider: (LanguageOption, LanguageOption) async -> [String: ModelAvailability]
     private let modelAssetDownloader: (IntelligenceModel, LanguageOption, LanguageOption) async throws -> Void
+    private let transcriptsDirectoryOverride: URL?
     private var audioSampleCount = 0
     private var lastRecognizedText = ""
     private var lastRecognizedWasFinal = false
@@ -269,6 +270,7 @@ final class TranslationSessionStore {
     private var toastDismissTask: Task<Void, Never>?
     private var transcribeOnlyNoticeDismissTask: Task<Void, Never>?
     private var captureStartTask: Task<Void, Never>?
+    private var captureStopTask: Task<Void, Never>?
     private var lastSpokenTranslatedText = ""
     private var spokenTranslationUnitKeys: Set<String> = []
     private var spokenTranslationUnitKeyOrder: [String] = []
@@ -285,7 +287,7 @@ final class TranslationSessionStore {
     }
 
     var shouldCoalesceTranscriptAutoScroll: Bool {
-        usesLongSessionMode && !isUsingOpenAIRealtime
+        isRunning || usesLongSessionMode
     }
 
     var isUsingOpenAIRealtime: Bool {
@@ -306,7 +308,7 @@ final class TranslationSessionStore {
 
     private struct SavedTranscriptFile {
         let fileName: String
-        let text: String
+        let previewText: String
         let updatedAt: Date
     }
 
@@ -321,10 +323,12 @@ final class TranslationSessionStore {
         },
         modelAssetDownloader: @escaping (IntelligenceModel, LanguageOption, LanguageOption) async throws -> Void = { model, source, target in
             try await ModelAvailabilityChecker.downloadAssets(for: model, source: source, target: target)
-        }
+        },
+        transcriptsDirectoryURL: URL? = nil
     ) {
         self.modelAvailabilityProvider = modelAvailabilityProvider
         self.modelAssetDownloader = modelAssetDownloader
+        self.transcriptsDirectoryOverride = transcriptsDirectoryURL
         restoreSelectedSettings()
         syncLiveOutputModeWithLanguagePair()
         systemAudioCapture.delegate = self
@@ -398,6 +402,11 @@ final class TranslationSessionStore {
 
         captureStartTask = Task { @MainActor in
             do {
+                if let captureStopTask {
+                    await captureStopTask.value
+                    self.captureStopTask = nil
+                }
+                guard !Task.isCancelled, isStarting else { return }
                 if audioInputSource == .systemAudio {
                     try systemAudioCapture.requestScreenRecordingAccess()
                 }
@@ -462,7 +471,7 @@ final class TranslationSessionStore {
             showToast(AppText.transcriptSavedToast)
         }
 
-        Task {
+        captureStopTask = Task { @MainActor in
             await stopCapture()
         }
     }
@@ -928,8 +937,13 @@ final class TranslationSessionStore {
         guard let transcript = savedTranscripts.first(where: { $0.id == id }) else { return }
 
         selectedSavedTranscriptID = id
-        savedDraftSourceText = transcript.sourceText
-        savedDraftTranslationText = transcript.translatedText ?? ""
+        savedDraftSourceText = loadTranscriptText(fileName: transcript.sourceFileName) ?? transcript.sourceText
+        if let translationFileName = transcript.translationFileName,
+           let translatedText = loadTranscriptText(fileName: translationFileName) {
+            savedDraftTranslationText = translatedText
+        } else {
+            savedDraftTranslationText = transcript.translatedText ?? ""
+        }
     }
 
     func saveSelectedTranscriptEdits() {
@@ -1306,13 +1320,10 @@ final class TranslationSessionStore {
             let transcriptFiles = fileURLs
                 .filter { $0.pathExtension == "txt" }
                 .compactMap { fileURL -> SavedTranscriptFile? in
-                    guard let text = try? String(contentsOf: fileURL, encoding: .utf8) else {
-                        return nil
-                    }
                     let values = try? fileURL.resourceValues(forKeys: [.contentModificationDateKey])
                     return SavedTranscriptFile(
                         fileName: fileURL.lastPathComponent,
-                        text: text.trimmingCharacters(in: .whitespacesAndNewlines),
+                        previewText: transcriptPreview(fileURL: fileURL),
                         updatedAt: values?.contentModificationDate ?? Date.distantPast
                     )
                 }
@@ -1321,6 +1332,20 @@ final class TranslationSessionStore {
         } catch {
             savedTranscripts = []
         }
+    }
+
+    private func transcriptPreview(fileURL: URL) -> String {
+        guard let handle = try? FileHandle(forReadingFrom: fileURL) else { return "" }
+        defer { try? handle.close() }
+
+        let data = (try? handle.read(upToCount: 4_096)) ?? Data()
+        return String(decoding: data, as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func loadTranscriptText(fileName: String) -> String? {
+        try? String(contentsOf: transcriptURL(fileName: fileName), encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func groupedSavedTranscripts(from files: [SavedTranscriptFile]) -> [SavedTranscript] {
@@ -1341,7 +1366,7 @@ final class TranslationSessionStore {
                 standaloneTranscripts.append(
                     SavedTranscript(
                         fileName: file.fileName,
-                        sourceText: file.text,
+                        sourceText: file.previewText,
                         updatedAt: file.updatedAt
                     )
                 )
@@ -1355,8 +1380,8 @@ final class TranslationSessionStore {
                         id: baseFileName,
                         sourceFileName: original.fileName,
                         translationFileName: translation.fileName,
-                        sourceText: original.text,
-                        translatedText: translation.text,
+                        sourceText: original.previewText,
+                        translatedText: translation.previewText,
                         updatedAt: max(original.updatedAt, translation.updatedAt)
                     )
                 )
@@ -1364,7 +1389,7 @@ final class TranslationSessionStore {
                 standaloneTranscripts.append(
                     SavedTranscript(
                         fileName: original.fileName,
-                        sourceText: original.text,
+                        sourceText: original.previewText,
                         updatedAt: original.updatedAt
                     )
                 )
@@ -1372,7 +1397,7 @@ final class TranslationSessionStore {
                 standaloneTranscripts.append(
                     SavedTranscript(
                         fileName: translation.fileName,
-                        sourceText: translation.text,
+                        sourceText: translation.previewText,
                         updatedAt: translation.updatedAt
                     )
                 )
@@ -1487,6 +1512,10 @@ final class TranslationSessionStore {
     }
 
     private var transcriptsDirectoryURL: URL {
+        if let transcriptsDirectoryOverride {
+            return transcriptsDirectoryOverride
+        }
+
         let supportDirectory = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask

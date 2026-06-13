@@ -10,9 +10,8 @@ final class OpenAIRealtimeAudioOutput: @unchecked Sendable {
     private var isConfigured = false
 
     func playPCM16Base64(_ audio: String, sampleRate: Double) {
-        guard let data = Data(base64Encoded: audio), !data.isEmpty else { return }
-
-        queue.async { [weak self] in
+        queue.async { [weak self, audio] in
+            guard let data = Data(base64Encoded: audio), !data.isEmpty else { return }
             self?.playPCM16Data(data, sampleRate: sampleRate)
         }
     }

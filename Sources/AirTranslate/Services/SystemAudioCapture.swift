@@ -25,6 +25,8 @@ final class SystemAudioCapture: NSObject, @unchecked Sendable {
 
     @MainActor
     func start(sampleRate: Int = 16_000) async throws {
+        await stop()
+
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
 
         guard let display = content.displays.first else {

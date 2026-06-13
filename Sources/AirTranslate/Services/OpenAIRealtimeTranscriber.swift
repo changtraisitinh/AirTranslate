@@ -10,6 +10,8 @@ final class OpenAIRealtimeTranscriber: @unchecked Sendable {
         * bytesPerPCM16Sample
         * maxAudioChunkMilliseconds
         / 1_000
+    private static let maxPendingAudioSendCount = 48
+    private static let realtimeTranscriptPublishInterval: TimeInterval = 0.08
 
     enum OutputMode {
         case transcription
@@ -25,7 +27,9 @@ final class OpenAIRealtimeTranscriber: @unchecked Sendable {
     private var language = LanguageOption.supported[0]
     private var outputMode = OutputMode.transcription
     private var isPaused = false
+    private var pendingAudioSendCount = 0
     private var realtimeTranscriptText = ""
+    private var lastRealtimeTranscriptPublishAt = Date.distantPast
 
     func start(language: LanguageOption, model: OpenAIRealtimeTranscriptionModel) async throws {
         try await start(
@@ -61,6 +65,7 @@ final class OpenAIRealtimeTranscriber: @unchecked Sendable {
         self.language = language
         self.outputMode = outputMode
         realtimeTranscriptText = ""
+        lastRealtimeTranscriptPublishAt = .distantPast
         let url: URL
         switch outputMode {
         case .transcription:
@@ -102,8 +107,10 @@ final class OpenAIRealtimeTranscriber: @unchecked Sendable {
             )
             guard let data = try? JSONEncoder().encode(event),
                   let text = String(data: data, encoding: .utf8) else { continue }
+            guard reserveAudioSendSlot() else { continue }
 
             webSocketTask.send(.string(text)) { [weak self] error in
+                self?.releaseAudioSendSlot()
                 guard let error, let self else { return }
                 self.delegate?.liveSpeechTranscriber(self.proxyTranscriber, didFail: error)
             }
@@ -122,7 +129,29 @@ final class OpenAIRealtimeTranscriber: @unchecked Sendable {
         receiveTask = nil
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         webSocketTask = nil
+        stateLock.lock()
+        pendingAudioSendCount = 0
+        stateLock.unlock()
         realtimeTranscriptText = ""
+        lastRealtimeTranscriptPublishAt = .distantPast
+    }
+
+    private func reserveAudioSendSlot() -> Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+
+        guard pendingAudioSendCount < Self.maxPendingAudioSendCount else {
+            return false
+        }
+
+        pendingAudioSendCount += 1
+        return true
+    }
+
+    private func releaseAudioSendSlot() {
+        stateLock.lock()
+        pendingAudioSendCount = max(0, pendingAudioSendCount - 1)
+        stateLock.unlock()
     }
 
     private func sendSessionUpdate(language: LanguageOption, modelID: String) async throws {
@@ -203,6 +232,7 @@ final class OpenAIRealtimeTranscriber: @unchecked Sendable {
             guard let transcript = event.transcript, !transcript.isEmpty else { return }
             publish(text: transcript)
             realtimeTranscriptText = ""
+            lastRealtimeTranscriptPublishAt = .distantPast
         case "session.output_transcript.delta":
             guard outputMode == .translationOnly,
                   let delta = event.delta,
@@ -214,6 +244,7 @@ final class OpenAIRealtimeTranscriber: @unchecked Sendable {
                   !transcript.isEmpty else { return }
             publish(text: transcript)
             realtimeTranscriptText = ""
+            lastRealtimeTranscriptPublishAt = .distantPast
         case "session.output_audio.delta":
             guard outputMode == .translationOnly,
                   let delta = event.delta,
@@ -232,6 +263,11 @@ final class OpenAIRealtimeTranscriber: @unchecked Sendable {
 
     private func appendRealtimeTranscriptDelta(_ delta: String) {
         realtimeTranscriptText += delta
+        let now = Date()
+        guard now.timeIntervalSince(lastRealtimeTranscriptPublishAt) >= Self.realtimeTranscriptPublishInterval else {
+            return
+        }
+        lastRealtimeTranscriptPublishAt = now
         publish(text: realtimeTranscriptText)
     }
 
