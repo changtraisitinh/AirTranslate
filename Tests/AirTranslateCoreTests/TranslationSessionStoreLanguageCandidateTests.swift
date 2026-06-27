@@ -36,6 +36,12 @@ struct TranslationSessionStoreLanguageCandidateTests {
     }
 
     @Test
+    func vietnameseIsIncludedInSupportedLanguages() {
+        #expect(LanguageOption.supported.contains(LanguageOption.vietnamese))
+        #expect(LanguageOption.vietnamese.localizedTitle == "Vietnamese")
+    }
+
+    @Test
     func autoDetectionCandidatesIncludeAllNonTargetSupportedLanguagesInSourcePriorityOrder() {
         let candidates = LanguageOption.prioritizedAutoDetectionCandidates(
             sourceLanguage: LanguageOption.korean,
