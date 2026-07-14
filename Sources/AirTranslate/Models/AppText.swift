@@ -742,9 +742,21 @@ enum AppText {
     }
 
     static func openAITranslationInstructions(source: String, target: String) -> String {
-        localized(
+        let baseInstruction = localized(
             english: "Translate from \(source) to \(target). Return only the translated text. Preserve paragraph breaks and line breaks.",
             korean: "\(source)에서 \(target)로 번역하세요. 번역문만 반환하고 문단과 줄바꿈은 유지하세요."
+        )
+
+        let targetIdentifier = target.lowercased()
+        let shouldPreserveTechnicalTerms = targetIdentifier.contains("vietnamese")
+            || targetIdentifier.contains("viet")
+            || targetIdentifier.contains("베트남")
+
+        guard shouldPreserveTechnicalTerms else { return baseInstruction }
+
+        return baseInstruction + localized(
+            english: " When translating to Vietnamese, preserve technical and IT terms, acronyms, product names, code symbols, and file names in their original form; do not translate them. Examples include API, UI, UX, SQL, SDK, AI, ML, JSON, HTML, CSS, HTTP, HTTPS, OAuth, SSO, CI/CD, DB, REST, and similar terms.",
+            korean: " 베트남어로 번역할 때는 기술 및 IT 용어, 약어, 제품명, 코드 기호, 파일 이름을 원형으로 유지하고 번역하지 마세요. API, UI, UX, SQL, SDK, AI, ML, JSON, HTML, CSS, HTTP, HTTPS, OAuth, SSO, CI/CD, DB, REST와 같은 용어가 포함됩니다."
         )
     }
 
